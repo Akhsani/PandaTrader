@@ -26,13 +26,13 @@
 - **Fix:** Replaced with `((results.index >= short_start) & (results.index <= short_end)).any()` to use range mask.
 - **Impact:** Short signals now correctly apply when any date in the short window exists in the price index.
 
-### 1.2 Potential Issues (Not Fixed – Design Notes)
+### 1.2 Potential Issues (Design Notes – No Impact on Experiments)
 
-| Location | Issue | Notes |
+| Location | Issue | Status |
 |---------|------|-------|
-| `strategies/WeekendMomentum.py` | `dataframe['date']` | Uses Freqtrade’s `date` column. Works with Freqtrade; standalone backtests use `df.index`. |
-| `strategies/CascadeBounce.py` | `index_col='datetime'` | Assumes OHLCV CSV has a `datetime` column. Matches output of `utils/fetch_1h_data.py`. |
-| `research/walk_forward/run_wfa_strategy_1.py` | `load_data_daily` uses `parse_dates=['datetime']` | Some CSVs use `date` (e.g. Strategy 3). BTC 1d data uses `datetime`; verify column names per data source. |
+| `strategies/WeekendMomentum.py` | `dataframe['date']` | By design. Freqtrade provides date. standalone backtests use WeekendMomentumBacktester. |
+| `strategies/CascadeBounce.py` | datetime/date column | **FIXED.** Uses `load_ohlcv()`. |
+| `research/walk_forward/run_wfa_strategy_1.py` | datetime vs date | **FIXED.** Uses `load_ohlcv()`. |
 
 ### 1.3 Code Quality Notes
 
@@ -73,8 +73,14 @@
 | BTC/USDT | -9.70% | -33.41% | -48.27% | -49.48% | No |
 | ETH/USDT | -4.62% | -14.98% | -58.54% | -50.87% | Yes (DD -7.67pp) |
 
-**WFA (ETH):** `python research/walk_forward/run_wfa_strategy_2.py --symbol ETH/USDT` → **+44.64% return, 213 trades, 59.62% win rate.**  
-**Note:** Regime filter reduces drawdown on ETH. WFA validates Strategy 2 on ETH 1h.  
+**WFA:** Run `python research/walk_forward/run_wfa_strategy_2.py --symbol ETH/USDT` or `--symbol BTC/USDT`.
+
+| Symbol | Total Return | Trades | Win Rate |
+|--------|--------------|--------|----------|
+| ETH/USDT | **+44.64%** | 213 | 59.62% |
+| BTC/USDT | -15.01% | 259 | 49.81% |
+
+**Recommendation:** Use Strategy 2 on ETH only; WFA validates edge on ETH 1h.  
 **Status:** PASS (1h data path verified)
 
 ---
@@ -206,14 +212,16 @@
 10. `utils/data_loader.py` – New: `load_ohlcv`, `find_funding_path` for datetime/date flexibility.
 11. `research/walk_forward/run_wfa_strategy_2.py` – Add `_find_funding_path`, fundingRate column handling.
 12. `tests/` – New: pytest for risk_manager, regime_detector, backtest_utils, data_loader.
+13. `research/walk_forward/run_wfa_strategy_1.py` – Use `load_ohlcv()` for datetime/date flexibility.
+14. `strategies/CascadeBounce.py` – Use `load_ohlcv()` for datetime/date flexibility.
 
 ---
 
 ## 5. Recommendations
 
 1. **Freqtrade:** Uncomment `freqtrade` in `requirements.txt` when you need: (a) `freqtrade backtesting` / `freqtrade trade` (paper or live), (b) importing strategies from `strategies/` (they use `freqtrade.strategy`). It was commented to keep the research env lightweight—standalone backtests in `research/backtests/` don't require it.
-2. **Strategy 2:** Regime filter reduces drawdown on ETH (-7.67pp) but not on BTC; both still negative. Consider WFA for parameter tuning.
-3. **Data:** Ensure `data/ohlcv/` paths and column names match the scripts (e.g. `datetime` vs `date`).
+2. **Strategy 2:** Regime filter reduces drawdown on ETH. WFA: ETH +44.64%, BTC -15.01%. **Use ETH only.**  
+3. **Data:** `load_ohlcv()` in `utils/data_loader.py` handles both `datetime` and `date` columns. WFA Strategy 1, CascadeBounce, Strategy 3 use it.
 4. **Tests:** pytest added for `risk_manager`, `regime_detector`, `backtest_utils`, `data_loader`. Run: `python -m pytest tests/ -v`.
 
 ---
@@ -255,10 +263,11 @@ python utils/risk_manager.py
 | **Strategy 1 backtest** | PASS | 110 trades, Sharpe 0.25 / 0.87 daily |
 | **Strategy 2 backtest** | PASS | BTC/ETH, regime helps ETH |
 | **Strategy 3 backtest** | PASS | ARB, OP, SUI (APT, TIA excluded) |
-| **CascadeBounce** | PASS | 7/8/5 trades |
+| **CascadeBounce** | PASS | 7/8/5 trades (load_ohlcv) |
 | **Strategy 5** | PASS | v2 grid 0.24% |
 | **Correlation** | PASS | Portfolio Sharpe 0.46 |
-| **WFA Strategy 1** | PASS | 20.84% return, 9 trades |
-| **WFA Strategy 2** | PASS | **44.64% return, 213 trades** (ETH) |
-| **Monte Carlo** | PASS | Median $1467, 16.2% ruin |
+| **WFA Strategy 1** | PASS | 20.84% return, 9 trades (load_ohlcv) |
+| **WFA Strategy 2 ETH** | PASS | **+44.64% return, 213 trades** |
+| **WFA Strategy 2 BTC** | PASS | -15.01% return, 259 trades |
+| **Monte Carlo** | PASS | Median $1461, 15.9% ruin |
 | **Risk Manager** | PASS | Blocks after daily loss |

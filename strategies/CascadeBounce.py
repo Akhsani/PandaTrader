@@ -7,6 +7,7 @@ import sys
 
 # Add parent directory to path to allow importing utils if needed
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.data_loader import load_ohlcv
 
 def backtest_cascade_bounce(symbol='BTC_USDT'):
     # file paths
@@ -16,10 +17,10 @@ def backtest_cascade_bounce(symbol='BTC_USDT'):
         print(f"Data not found for {symbol}. Run utils/fetch_1h_data.py first.")
         return
 
-    # Load Data
+    # Load Data (load_ohlcv handles datetime/date column flexibility)
     print(f"Loading data for {symbol}...")
     try:
-        df = pd.read_csv(ohlcv_path, index_col='datetime', parse_dates=True)
+        df = load_ohlcv(ohlcv_path)
         df = df.sort_index()
     except Exception as e:
         print(f"Error loading data: {e}")

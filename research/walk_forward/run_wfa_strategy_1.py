@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from research.walk_forward.walk_forward_analysis import WalkForwardAnalyzer
+from utils.data_loader import load_ohlcv
 
 def strategy_logic_1(price_df, funding_df=None, ma_fast=50, ma_slow=200, stop_loss=0.03):
     """
@@ -87,12 +88,12 @@ def strategy_logic_1(price_df, funding_df=None, ma_fast=50, ma_slow=200, stop_lo
     return pd.DataFrame(trades)
 
 def load_data_daily(symbol):
-    # Load 1d data
     path = f"data/ohlcv/{symbol.replace('/', '_')}_1d.csv"
-    if not os.path.exists(path):
-         print(f"Data not found: {path}")
-         return None
-    return pd.read_csv(path, parse_dates=['datetime'], index_col='datetime')
+    try:
+        return load_ohlcv(path)
+    except FileNotFoundError:
+        print(f"Data not found: {path}")
+        return None
 
 if __name__ == "__main__":
     import argparse
