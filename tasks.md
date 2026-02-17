@@ -11,14 +11,14 @@ This document tracks the development progress of the Crypto Bot strategies based
 ---
 
 ## Phase 1: Infrastructure & Setup (Day 1)
-- [ ] **Environment Setup**
-    - [ ] Create project directory `~/crypto-bot`.
-    - [ ] Set up Python virtual environment (`venv`).
-    - [ ] Install dependencies: `ccxt`, `freqtrade`, `vectorbt`, `pandas`, `numpy`, `ta-lib`, `python-telegram-bot`, `jupyter`, `hmmlearn`, `scikit-learn`, `matplotlib`.
-    - [ ] Install `pandas-ta` (fallback if ta-lib fails).
-    - [ ] Verify CCXT connection to Binance.
-- [ ] **Project Structure**
-    - [ ] Create directory structure:
+- [x] **Environment Setup**
+    - [x] Create project directory `~/crypto-bot`.
+    - [x] Set up Python virtual environment (`venv`).
+    - [x] Install dependencies: `ccxt`, `freqtrade`, `vectorbt`, `pandas`, `numpy`, `ta-lib`, `python-telegram-bot`, `jupyter`, `hmmlearn`, `scikit-learn`, `matplotlib`. (Note: `ta-lib` and `freqtrade` skipped due to system limitations; `pandas-ta` installation failed)
+    - [-] Install `pandas-ta` (fallback if ta-lib fails).
+    - [-] Verify CCXT connection to Binance. (Network connection failed in environment)
+- [x] **Project Structure**
+    - [x] Create directory structure:
         - `config/`
         - `data/ohlcv/`, `data/funding_rates/`, `data/unlocks/`
         - `strategies/`
