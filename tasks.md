@@ -61,13 +61,13 @@ This document tracks the development progress of the Crypto Bot strategies based
     - [x] Implement `Live Signal Monitor` (`utils/telegram_alerts.py`) for real-time funding alerts.
 
 ### Strategy 3: Token Unlock Event Trading (Target: Week 2)
-- [ ] **Data Source**
-    - [ ] Create `strategies/UnlockTrader.py`.
-    - [ ] Implement `get_upcoming_unlocks` (API or manual CSV).
-    - [ ] Implement `score_unlock_impact` logic.
-- [ ] **Backtest**
-    - [ ] Implement `backtest_unlock_strategy` (Short 30d before, cover 14d after).
-    - [ ] Validate against historical events.
+- [x] **Data Source**
+    - [x] Create `strategies/UnlockTrader.py`.
+    - [x] Implement `get_upcoming_unlocks` (API or manual CSV).
+    - [x] Implement `score_unlock_impact` logic.
+- [x] **Backtest**
+    - [x] Implement `backtest_unlock_strategy` (Short 30d before, cover 14d after).
+    - [x] Validate against historical events.
 
 ### Strategy 4: Liquidation Cascade Bounce (Target: Week 2-3)
 - [ ] **Detection System**

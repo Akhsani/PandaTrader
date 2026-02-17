@@ -466,43 +466,17 @@ def generate_unlock_signals(unlocks_df):
     return pd.DataFrame(signals)
 ```
 
-### Backtest Approach
+### Validation Results (Feb 2026)
+> For full details, see **[EXP_003: Token Unlock Event Trading](research/experiments/EXP_003_TokenUnlocks.md)**
 
-```python
-def backtest_unlock_strategy(token_symbol, unlock_dates, price_data):
-    """
-    For each unlock event:
-    1. Short 30 days before (or exit long)
-    2. Cover 14 days after
-    3. Measure PnL
-    """
-    trades = []
-    
-    for unlock_date in unlock_dates:
-        entry_date = unlock_date - pd.Timedelta(days=30)
-        exit_date = unlock_date + pd.Timedelta(days=14)
-        
-        # Find nearest trading dates
-        try:
-            entry_price = price_data.loc[entry_date:entry_date + pd.Timedelta(days=3)].iloc[0]
-            exit_price = price_data.loc[exit_date:exit_date + pd.Timedelta(days=3)].iloc[0]
-            
-            # Short trade PnL
-            pnl = (entry_price - exit_price) / entry_price
-            
-            trades.append({
-                'unlock_date': unlock_date,
-                'entry_date': entry_date,
-                'exit_date': exit_date,
-                'entry_price': entry_price,
-                'exit_price': exit_price,
-                'pnl': pnl
-            })
-        except IndexError:
-            continue
-    
-    return pd.DataFrame(trades)
-```
+- **Performance**:
+    - **OP/USDT**: +64.85% (Strong Alpha)
+    - **SUI/USDT**: +34.22%
+    - **ARB/USDT**: +16.45%
+    - **APT/USDT**: -27.15% (Failed)
+- **Aggregate**: +17.32% Avg Return, but high max drawdown (-32%).
+- **Conclusion**: **Provisional Approval**. Works best on Layer 2s and Ecosystem tokens. Failed on APT. Requires trend filter or hedging to reduce volatility risk.
+
 
 ---
 
