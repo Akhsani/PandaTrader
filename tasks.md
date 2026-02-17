@@ -28,15 +28,15 @@ This document tracks the development progress of the Crypto Bot strategies based
 ## Phase 2: Strategy Development & Backtesting
 
 ### Strategy 1: Weekend Momentum Premium (Target: Week 1)
-- [ ] **Data & Research**
-    - [ ] Fetch 2+ years of daily OHLCV data for BTC, ETH, SOL, LINK.
-    - [ ] Implement basic backtest in VectorBT (Fri close -> Mon close).
-- [ ] **Refinement**
-    - [ ] Implement Trend Filter version (EMA50 > EMA200).
-    - [ ] Compare results (Sharpe, Drawdown) vs Buy & Hold.
-- [ ] **Implementation**
-    - [ ] Create `strategies/WeekendMomentum.py` for Freqtrade.
-    - [ ] Implement `populate_indicators`, `populate_entry_trend`, `populate_exit_trend`.
+- [x] **Data & Research**
+    - [x] Fetch 2+ years of daily OHLCV data for BTC, ETH, SOL, LINK.
+    - [x] Implement basic backtest in VectorBT (Fri close -> Mon close). (`research/backtests/backtest_strategy_1.py`)
+- [x] **Refinement**
+    - [x] Implement Trend Filter version (EMA50 > EMA200). (Verified: Significant improvement in returns and drawdown across all assets)
+    - [x] Compare results (Sharpe, Drawdown) vs Buy & Hold. (Buy & Hold negative in test period; Trend Filter positive)
+- [x] **Implementation**
+    - [x] Create `strategies/WeekendMomentum.py` for Freqtrade.
+    - [ ] Implement `populate_indicators`, `populate_entry_trend`, `populate_exit_trend`. (Done in file)
 
 ### Strategy 2: Funding Rate Mean Reversion (Target: Week 1-2)
 - [ ] **Data Collection**
