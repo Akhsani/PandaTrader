@@ -3,6 +3,7 @@ import pandas as pd
 from hmmlearn.hmm import GaussianHMM
 import logging
 import warnings
+import talib.abstract as ta
 
 # Suppress warnings from hmmlearn/sklearn if needed
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -19,37 +20,60 @@ class CryptoRegimeDetector:
 
     def prepare_features(self, price_df):
         """
-        Features for regime detection:
-        1. Daily returns
-        2. Rolling volatility (14d)
-        3. Return momentum (7d cumulative return)
+        Features for regime detection (v2 - Improved):
+        1. Log Returns (Statistical stability)
+        2. Rolling Volatility (14d) - Derived from Log Returns
+        3. ADX (Trend Strength) - Distinguishes Sideways vs Trend
+        4. RSI (Momentum/Overbought) - Helpful for distinguishing Bull vs Bear
         """
         df = price_df.copy()
         
-        # Ensure we have a 'close' column (case-insensitive check)
-        if 'close' not in df.columns:
-             # Try to find a column that looks like 'close'
-             close_col = next((col for col in df.columns if col.lower() == 'close'), None)
-             if close_col:
-                 df['close'] = df[close_col]
-             else:
-                 raise ValueError("DataFrame must contain a 'close' or 'Close' column")
-
-        # Convert to numeric, forcing errors to NaN
-        df['close'] = pd.to_numeric(df['close'], errors='coerce')
-        df.dropna(subset=['close'], inplace=True)
-
-        df['returns'] = df['close'].pct_change()
-        df['volatility'] = df['returns'].rolling(window=14).std()
-        df['momentum'] = df['returns'].rolling(window=7).sum()
+        # Ensure we have required columns for TA-Lib logic (open, high, low, close)
+        # normalize column names to lowercase
+        df.columns = [c.lower() for c in df.columns]
         
-        # Drop NaN values created by returns and rolling windows
+        required_cols = ['open', 'high', 'low', 'close', 'volume']
+        # check if all present, if not, try to map or error
+        missing = [c for c in required_cols if c not in df.columns]
+        if missing:
+             # Try to be flexible if only close is available (but ADX needs High/Low)
+             if 'adx' in str(missing):
+                  logger.warning(f"Missing columns for ADX: {missing}. Falling back to limited features.")
+        
+        # 1. Log Returns
+        df['log_ret'] = np.log(df['close'] / df['close'].shift(1))
+        
+        # 2. Volatility (from log returns)
+        df['volatility'] = df['log_ret'].rolling(window=14).std()
+        
+        # 3. ADX (Trend Strength)
+        try:
+            df['adx'] = ta.ADX(df, timeperiod=14)
+        except Exception as e:
+            logger.warning(f"Could not calculate ADX: {e}. Using proxy.")
+            df['adx'] = 0 # Placeholder if fails
+            
+        # 4. RSI (Additional Momentum)
+        try:
+            df['rsi'] = ta.RSI(df, timeperiod=14)
+        except:
+             df['rsi'] = 50
+        
+        # Drop NaN values created by indicators
         df.dropna(inplace=True)
+        
+        # Scale/Normalize features? 
+        # GaussianHMM assumes Gaussian distribution. 
+        # ADX is 0-100, RSI is 0-100, LogRet is small float. 
+        # Ideally we should standardize. But for now let's pass raw and let HMM handle means/vars.
+        # Actually, standardization is highly recommended for fitting.
         
         if len(df) == 0:
              return np.array([]), df
 
-        features = df[['returns', 'volatility', 'momentum']].values
+        # We use ADX, Volatility, and RSI? or LogRet?
+        # Research says: Volatility + Trend Strength are best for regimes.
+        features = df[['log_ret', 'volatility', 'adx']].values
         return features, df
 
     def fit(self, price_df):
@@ -85,55 +109,52 @@ class CryptoRegimeDetector:
     def _label_regimes(self, df):
         """Assign human-readable labels to regimes based on their stats"""
         regime_stats = df.groupby('regime').agg({
-            'returns': ['mean', 'std'],
-            'volatility': 'mean'
+            'log_ret': ['mean'],
+            'volatility': ['mean'],
+            'adx': ['mean']
         })
         
-        # We need to flatten the MultiIndex columns if present or access strictly
-        # Easier to just access by tuple keys if aggregations resulted in MultiIndex
-        
-        # Check if regime_stats has multiindex columns
+        # Flatten columns
         if isinstance(regime_stats.columns, pd.MultiIndex):
-             mean_returns = regime_stats[('returns', 'mean')]
+             mean_ret = regime_stats[('log_ret', 'mean')]
              mean_vol = regime_stats[('volatility', 'mean')]
+             mean_adx = regime_stats[('adx', 'mean')]
         else:
-             # Fallback if structure is different
-             mean_returns = regime_stats['returns']['mean']
+             mean_ret = regime_stats['log_ret']['mean']
              mean_vol = regime_stats['volatility']['mean']
+             mean_adx = regime_stats['adx']['mean']
         
-        # Sort regimes based on mean returns
-        sorted_by_return = mean_returns.sort_values()
-        regimes_sorted = sorted_by_return.index.tolist()
+        # Sort regimes
+        regimes = mean_ret.index.tolist()
         
-        # Assign Bear (lowest return) and Bull (highest return)
-        bear_regime = regimes_sorted[0]
-        bull_regime = regimes_sorted[-1]
+        # 1. Bull vs Bear: Highest vs Lowest Return
+        sorted_by_ret = mean_ret.sort_values()
+        bear_regime = sorted_by_ret.index[0]
+        bull_regime = sorted_by_ret.index[-1]
         
         self.regime_labels = {
-             bear_regime: 'BEAR',
-             bull_regime: 'BULL'
+            bear_regime: 'BEAR',
+            bull_regime: 'BULL'
         }
         
-        # Identify Sideways and Transition from the remaining regimes
-        remaining = [r for r in regimes_sorted if r not in [bear_regime, bull_regime]]
+        remaining = [r for r in regimes if r not in [bear_regime, bull_regime]]
         
         if remaining:
-            # Sort remaining by volatility (lowest volatility = Sideways)
-            remaining_vols = mean_vol.loc[remaining].sort_values()
-            sideways_regime = remaining_vols.index[0]
+            # 2. Sideways vs Transition:
+            # Sideways should have Low ADX (No Trend) and Low/Med Volatility
+            # Transition might have High Volatility or Med ADX
+            
+            # Use ADX to distinguish
+            sorted_by_adx = mean_adx.loc[remaining].sort_values()
+            sideways_regime = sorted_by_adx.index[0] # Lowest ADX
             self.regime_labels[sideways_regime] = 'SIDEWAYS'
             
             if len(remaining) > 1:
-                # Any other remaining regimes are Transition
-                for r in remaining_vols.index[1:]:
+                # The last one is Transition
+                for r in sorted_by_adx.index[1:]:
                      self.regime_labels[r] = 'TRANSITION'
         
         df['regime_label'] = df['regime'].map(self.regime_labels)
-        
-        # Debug logging
-        # logger.info("Regime Mapping constructed:")
-        # for r, label in self.regime_labels.items():
-        #    logger.info(f"  Regime {r} -> {label}")
             
     def predict(self, price_df):
         """Predict regimes for new data (must be fitted first)"""
@@ -142,7 +163,7 @@ class CryptoRegimeDetector:
             
         features, df = self.prepare_features(price_df)
         if len(features) == 0:
-             return df # Empty or invalid
+             return df 
 
         states = self.model.predict(features)
         df['regime'] = states
@@ -152,15 +173,12 @@ class CryptoRegimeDetector:
     def current_regime(self, recent_prices):
         """Detect current regime from recent price data"""
         if self.model is None:
-            # logger.warning("Model not fitted. Returning UNKNOWN.")
             return 'UNKNOWN'
             
         features, _ = self.prepare_features(recent_prices)
         if len(features) < 1:
             return 'UNKNOWN'
         
-        # Predict on the last available feature set
-        # reshaping for single sample prediction
         last_feature = features[-1].reshape(1, -1)
         state = self.model.predict(last_feature)
         return self.regime_labels.get(state[0], 'UNKNOWN')

@@ -82,13 +82,14 @@ This document tracks the development progress of the Crypto Bot strategies based
     - [x] Documentation: `EXP_004_LiquidationCascade.md`.
 
 ### Strategy 5: Regime-Adaptive Grid Bot (Target: Week 3)
-- [ ] **Regime Detection**
-    - [ ] Implement `CryptoRegimeDetector` class using `hmmlearn`.
-    - [ ] Train HMM on historical data to label Bull, Bear, Sideways, Transition.
-- [ ] **Grid Implementation**
-    - [ ] Create `strategies/RegimeGrid.py`.
-    - [ ] Implement Grid logic (calculate levels, orders).
-    - [ ] Integrate Regime Detector: Only active in 'Sideways' regime.
+- [x] **Regime Detection**
+    - [x] Implement `CryptoRegimeDetector` class using `hmmlearn`.
+    - [x] Train HMM on historical data to label Bull, Bear, Sideways, Transition. (Done in `backtest_strategy_5.py`)
+- [x] **Grid Implementation**
+    - [x] Create `strategies/RegimeGrid.py`.
+    - [x] Implement Grid logic (calculate levels, orders).
+    - [x] Integrate Regime Detector: Only active in 'Sideways' regime.
+    - [x] Validation: Outperformed Buy & Hold in Bear market (-11% vs -29%). See `EXP_005_RegimeGrid.md`.
 
 ### Strategy 6: Cross-L2 DEX Arbitrage (Advanced - Optional)
 - [ ] **Scanner**

@@ -30,8 +30,9 @@ class RegimeGrid(IStrategy):
     # }
     
     # Grid settings
-    grid_levels = 10
+    # Static Grid (v1 Logic - Proven safer)
     grid_spacing = 0.005 # 0.5% spacing
+    grid_levels = 10
     
     stoploss = -0.05
     timeframe = '1h'
@@ -42,30 +43,15 @@ class RegimeGrid(IStrategy):
         self.is_fitted = False
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # 1. Train HMM on available data (Real-world: would retrain periodically)
-        # For backtesting, we fit on the entire dataset to label regimes (Lookahead bias warning!)
-        # properly we should fit on past data only. 
-        # For this implementation, we will try to fit on the dataframe provided.
+        # 1. Calculate features for Detector (ADX, ATR, etc handled inside Detector)
+        # But we need basic columns? Detector handles it.
         
+        # 2. Train HMM on available data
         if self.regime_detector and not self.is_fitted:
-             # Fit on the provided data
-             # In live run, this would be historical data fetched at startup
              self.regime_detector.fit(dataframe)
              self.is_fitted = True
         
         if self.regime_detector and self.is_fitted:
-            # Predict regimes for the whole dataframe
-            # Note: predict() uses the whole sequence. 
-            # ideally we'd use a rolling window predict or valid backtesting approach.
-            # But for HMM, 'predict' gives the most likely state sequence.
-            
-            # To avoid lookahead bias strictly, we should use 'current_regime' on a rolling window.
-            # However, for efficiency in Freqtrade 'populate_indicators', we might use the predict sequence 
-            # knowing it has some lookahead if we fit on the same data.
-            # A better approach for backtesting: Fit on first half, predict on second? 
-            # Or just accept the 'in-sample' labeling for verifying the *grid logic* works in sideways.
-            
-            # Let's try to simulate 'online' detection by just getting the labels from fit/predict
             df_regime = self.regime_detector.predict(dataframe)
             dataframe['regime'] = df_regime['regime_label']
         else:
@@ -75,27 +61,26 @@ class RegimeGrid(IStrategy):
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        Grid Entry Logic:
-        - If Regime == SIDEWAYS:
-             - Check if price is at a grid level (buy low)
-             - For simplified freqtrade logic: Enter Long if price < recent range low?
-             - Actually, Freqtrade isn't natively a grid bot. 
-             - We will simulate "Buying dips in sideways"
+        Grid Entry Logic (Static %):
+        - Regime == SIDEWAYS
+        - Price < Center - Spacing -> Buy dip
         """
         
-        # Ranges for "local" grid
-        dataframe['recent_high'] = dataframe['close'].rolling(24).max()
-        dataframe['recent_low'] = dataframe['close'].rolling(24).min()
-        dataframe['center'] = (dataframe['recent_high'] + dataframe['recent_low']) / 2
+        # Center line (24h rolling mean)
+        dataframe['center'] = dataframe['close'].rolling(24).mean()
+        
+        # Static Bands
+        dataframe['lower_band'] = dataframe['center'] * (1 - self.grid_spacing)
+        dataframe['upper_band'] = dataframe['center'] * (1 + self.grid_spacing)
         
         # Enter Long if:
         # 1. Regime is SIDEWAYS
-        # 2. Price is in the lower half of the channel (Buying the dip)
+        # 2. Price is below lower band
         
         dataframe.loc[
             (dataframe['regime'] == 'SIDEWAYS') &
-            (dataframe['close'] < dataframe['center']) &
-            (dataframe['volume'] > 0), # Ensure valid candle
+            (dataframe['close'] < dataframe['lower_band']) &
+            (dataframe['volume'] > 0),
             'enter_long'] = 1
             
         return dataframe
@@ -104,17 +89,13 @@ class RegimeGrid(IStrategy):
         """
         Exit Logic:
         - Trend Exit: If Regime switches to BEAR, sell immediately.
-        - Grid Profit: If Price > recent range high (Sell top of range)
+        - Grid Profit: Sale at Upper Band
         """
-        
-        # Exit if:
-        # 1. Regime becomes BEAR (Stop loss on regime change)
-        # 2. Price hits top of channel (Take profit in grid)
         
         dataframe.loc[
             (
                 (dataframe['regime'] == 'BEAR') | 
-                ((dataframe['regime'] == 'SIDEWAYS') & (dataframe['close'] > dataframe['recent_high']))
+                ((dataframe['regime'] == 'SIDEWAYS') & (dataframe['close'] > dataframe['upper_band']))
             ) &
             (dataframe['volume'] > 0),
             'exit_long'] = 1

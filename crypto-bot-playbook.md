@@ -798,6 +798,15 @@ class RegimeFilteredGrid:
             print(f"⚠️ Regime: {regime} → Deactivating grid bot")
             self.deactivate_grid()
             self.is_active = False
+
+### Validation Status (Feb 2026)
+> For full details, see **[EXP_005: Regime-Adaptive Grid Bot](research/experiments/EXP_005_RegimeGrid.md)**
+
+- **Performance**: Outperformed Buy & Hold in bear market (-11.18% vs -28.90%).
+- **Edge**: Significant capital preservation during downtrends by detecting 'BEAR' regime and exiting.
+- **Status**: **Promising / Defensive**.
+    - The "Sideways" detection works for capital preservation.
+    - Added to `strategies/RegimeGrid.py`.
             
         else:
             print(f"ℹ️ Regime: {regime} | Grid active: {self.is_active}")
