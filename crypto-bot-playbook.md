@@ -320,6 +320,11 @@ def backtest_funding_mean_reversion(price_df, funding_df,
 # trades = backtest_funding_mean_reversion(btc_price, btc_funding)
 ```
 
+### Validation Results (Feb 2026)
+- **Granularity Issue**: Backtesting on daily data (1d candles) showed few trades and mixed results (ETH +4%, SOL -20%).
+- **Recommendation**: This strategy requires higher granularity (1h or 4h) to capture intraday mean reversion.
+- **Action**: Strategy implementation in `strategies/FundingReversion.py` set to `1h` timeframe. Live monitor `utils/telegram_alerts.py` polls continuously.
+
 ### Live Signal Monitor (Telegram Alert)
 
 ```python

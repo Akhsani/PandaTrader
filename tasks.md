@@ -39,15 +39,15 @@ This document tracks the development progress of the Crypto Bot strategies based
     - [ ] Implement `populate_indicators`, `populate_entry_trend`, `populate_exit_trend`. (Done in file)
 
 ### Strategy 2: Funding Rate Mean Reversion (Target: Week 1-2)
-- [ ] **Data Collection**
-    - [ ] Create `utils/data_collector.py` to fetch historical funding rates.
-    - [ ] Fetch 2 years of funding data for BTC, ETH, SOL.
-- [ ] **Research & Backtest**
-    - [ ] Implement `backtest_funding_mean_reversion` logic.
-    - [ ] Optimize entry/exit thresholds (default: >0.05% entry, <0.01% exit).
-- [ ] **Implementation**
-    - [ ] Create `strategies/FundingReversion.py`.
-    - [ ] Implement `Live Signal Monitor` (`utils/telegram_alerts.py`) for real-time funding alerts.
+- [x] **Data Collection**
+    - [x] Create `utils/data_collector.py` to fetch historical funding rates.
+    - [x] Fetch 2 years of funding data for BTC, ETH, SOL.
+- [x] **Research & Backtest**
+    - [x] Implement `backtest_funding_mean_reversion` logic.
+    - [x] Optimize entry/exit thresholds (default: >0.05% entry, <0.01% exit). (Note: daily data insufficient, recommended 1h)
+- [x] **Implementation**
+    - [x] Create `strategies/FundingReversion.py`.
+    - [x] Implement `Live Signal Monitor` (`utils/telegram_alerts.py`) for real-time funding alerts.
 
 ### Strategy 3: Token Unlock Event Trading (Target: Week 2)
 - [ ] **Data Source**
