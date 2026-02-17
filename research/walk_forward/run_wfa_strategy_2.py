@@ -9,6 +9,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from research.walk_forward.walk_forward_analysis import WalkForwardAnalyzer
+from utils.data_loader import find_funding_path
 
 # Re-implement strategy logic function that accepts dataframes directly
 # (Importing from backtest_strategy_2 might be messy if it relies on loading files internally)
@@ -91,22 +92,9 @@ def strategy_logic(price_df, funding_df, z_score_threshold=2.0, adx_threshold=25
                     
     return pd.DataFrame(trades)
 
-def _find_funding_path(symbol):
-    """Try multiple funding file naming patterns (aligns with fetch_1h_data)."""
-    base = symbol.replace('/', '_')
-    for pattern in [
-        f"data/funding_rates/{base}_funding.csv",
-        f"data/funding_rates/{base}_USDT_funding.csv",
-        f"data/funding_rates/{base}_USDT_USDT_funding.csv",
-    ]:
-        if os.path.exists(pattern):
-            return pattern
-    return None
-
-
 def load_full_data(symbol):
     ohlcv_path = f"data/ohlcv/{symbol.replace('/', '_')}_1h.csv"
-    funding_path = _find_funding_path(symbol)
+    funding_path = find_funding_path(symbol)
     if not funding_path:
         raise FileNotFoundError(f"Funding data not found for {symbol}. Run: python utils/fetch_1h_data.py")
 

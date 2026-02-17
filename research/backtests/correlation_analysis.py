@@ -45,7 +45,7 @@ def analyze():
     
     files = {
         'Strat1_BTC': 'research/backtests/equity_strat1_BTC_USDT.csv',
-        'Strat2_BTC': 'research/backtests/equity_strat2_BTC_USDT.csv',
+        'Strat2_ETH': 'research/backtests/equity_strat2_ETH_USDT.csv',
         'Strat3_ARB': 'research/backtests/equity_strat3_ARB_USDT.csv'
     }
     

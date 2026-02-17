@@ -1,0 +1,11 @@
+{
+  "symbol": "ETH/USDT",
+  "train_end": "2026-02-18",
+  "train_days": 180,
+  "params": {
+    "z_score_threshold": 1.5,
+    "adx_threshold": 20,
+    "stop_loss": 0.05
+  },
+  "train_score": 0.3340764143403343
+}

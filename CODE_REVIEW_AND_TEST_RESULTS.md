@@ -36,6 +36,7 @@
 
 ### 1.3 Code Quality Notes
 
+- **DRY – `find_funding_path`:** Consolidated in `utils/data_loader.py`; `backtest_strategy_2_v2.py` and `run_wfa_strategy_2.py` import it instead of duplicating path logic.
 - **Risk Manager:** `risk_manager.py` correctly handles kill switch, daily loss limit, and position sizing.
 - **Regime Detector:** HMM-based regime detection with `log_ret`, `volatility`, `adx`, `trend_pos` is implemented and used consistently.
 - **Backtest Utils:** `calculate_net_returns` and `get_performance_metrics` handle fees and slippage correctly.
@@ -80,7 +81,9 @@
 | ETH/USDT | **+44.64%** | 213 | 59.62% |
 | BTC/USDT | -15.01% | 259 | 49.81% |
 
-**Recommendation:** Use Strategy 2 on ETH only; WFA validates edge on ETH 1h.  
+**Recommendation:** Use Strategy 2 on ETH only; WFA validates edge on ETH 1h.
+
+**Backtest vs WFA discrepancy:** Fixed-param backtest (-14.98%) vs WFA (+44.64%) shows the edge is parameter-sensitive and time-varying. For paper trading: run `python research/walk_forward/reoptimize_strategy_2.py --symbol ETH/USDT` monthly to re-fit params on the most recent 180 days; use the output for the next month.  
 **Status:** PASS (1h data path verified)
 
 ---
@@ -132,16 +135,18 @@
 
 **Script:** `research/backtests/correlation_analysis.py`
 
+**Note:** Uses Strat2_ETH (not Strat2_BTC) to match deployment—Strategy 2 runs on ETH only.
+
 **Pearson correlation matrix:**
 
-|            | Strat1_BTC | Strat2_BTC | Strat3_ARB |
+|            | Strat1_BTC | Strat2_ETH | Strat3_ARB |
 |------------|------------|------------|------------|
-| Strat1_BTC | 1.000      | 0.004      | -0.020     |
-| Strat2_BTC | 0.004      | 1.000      | 0.041      |
-| Strat3_ARB | -0.020     | 0.041      | 1.000      |
+| Strat1_BTC | 1.000      | -0.011     | -0.001     |
+| Strat2_ETH | -0.011     | 1.000      | -0.000     |
+| Strat3_ARB | -0.001     | -0.000     | 1.000      |
 
-**Combined portfolio (equal weight):** 13.54% total return, -13.66% max drawdown, Sharpe 0.53.  
-**Status:** PASS
+**Combined portfolio (equal weight):** 16.63% total return, -6.39% max drawdown, Sharpe 1.05.  
+**Status:** PASS (diversification holds with Strat2_ETH)
 
 ---
 
@@ -204,13 +209,13 @@
 2. `research/backtests/correlation_analysis.py` – Add `sort=True` to `pd.concat()`.
 3. `strategies/UnlockTrader.py` – Fix date boundary bug (range mask for short signals).
 4. `research/backtests/backtest_strategy_3_v3.py` – Remove APT from token universe.
-5. `research/backtests/backtest_strategy_2_v2.py` – 1h data path, funding path helper, 24-bar rolling.
+5. `research/backtests/backtest_strategy_2_v2.py` – 1h data path, import `find_funding_path` from `utils.data_loader`, 24-bar rolling.
 6. `strategies/WeekendMomentum.py` – Add volatility gate (ATR < 75th percentile).
 7. `research/backtests/backtest_strategy_1_v2.py` – Add volatility gate, daily-return Sharpe.
 8. `research/backtests/backtest_strategy_2_v2.py` – Add `--symbol` and `--both` CLI for multi-asset.
 9. `research/backtests/backtest_strategy_3_v3.py` – Add `EXCLUDED_TOKENS` (APT, TIA), `UNLOCK_UNIVERSE`.
 10. `utils/data_loader.py` – New: `load_ohlcv`, `find_funding_path` for datetime/date flexibility.
-11. `research/walk_forward/run_wfa_strategy_2.py` – Add `_find_funding_path`, fundingRate column handling.
+11. `research/walk_forward/run_wfa_strategy_2.py` – Import `find_funding_path` from `utils.data_loader` (DRY).
 12. `tests/` – New: pytest for risk_manager, regime_detector, backtest_utils, data_loader.
 13. `research/walk_forward/run_wfa_strategy_1.py` – Use `load_ohlcv()` for datetime/date flexibility.
 14. `strategies/CascadeBounce.py` – Use `load_ohlcv()` for datetime/date flexibility.
@@ -220,7 +225,7 @@
 ## 5. Recommendations
 
 1. **Freqtrade:** Uncomment `freqtrade` in `requirements.txt` when you need: (a) `freqtrade backtesting` / `freqtrade trade` (paper or live), (b) importing strategies from `strategies/` (they use `freqtrade.strategy`). It was commented to keep the research env lightweight—standalone backtests in `research/backtests/` don't require it.
-2. **Strategy 2:** Regime filter reduces drawdown on ETH. WFA: ETH +44.64%, BTC -15.01%. **Use ETH only.**  
+2. **Strategy 2:** Regime filter reduces drawdown on ETH. WFA: ETH +44.64%, BTC -15.01%. **Use ETH only.** Re-optimize monthly: `python research/walk_forward/reoptimize_strategy_2.py --symbol ETH/USDT -o research/walk_forward/results/strategy2_params.json`.  
 3. **Data:** `load_ohlcv()` in `utils/data_loader.py` handles both `datetime` and `date` columns. WFA Strategy 1, CascadeBounce, Strategy 3 use it.
 4. **Tests:** pytest added for `risk_manager`, `regime_detector`, `backtest_utils`, `data_loader`. Run: `python -m pytest tests/ -v`.
 
@@ -241,10 +246,11 @@ python strategies/CascadeBounce.py
 python research/backtests/backtest_strategy_5_v2.py
 
 # Analysis
-python research/backtests/correlation_analysis.py
+python research/backtests/correlation_analysis.py   # Strat2_ETH (deployment config)
 python research/monte_carlo/run_monte_carlo.py
 python research/walk_forward/run_wfa_strategy_1.py --symbol BTC/USDT
 python research/walk_forward/run_wfa_strategy_2.py --symbol ETH/USDT
+python research/walk_forward/reoptimize_strategy_2.py --symbol ETH/USDT -o research/walk_forward/results/strategy2_params.json  # Monthly re-opt
 
 # Tests
 python -m pytest tests/ -v
@@ -265,7 +271,7 @@ python utils/risk_manager.py
 | **Strategy 3 backtest** | PASS | ARB, OP, SUI (APT, TIA excluded) |
 | **CascadeBounce** | PASS | 7/8/5 trades (load_ohlcv) |
 | **Strategy 5** | PASS | v2 grid 0.24% |
-| **Correlation** | PASS | Portfolio Sharpe 0.46 |
+| **Correlation** | PASS | Strat2_ETH, Portfolio Sharpe 1.05 |
 | **WFA Strategy 1** | PASS | 20.84% return, 9 trades (load_ohlcv) |
 | **WFA Strategy 2 ETH** | PASS | **+44.64% return, 213 trades** |
 | **WFA Strategy 2 BTC** | PASS | -15.01% return, 259 trades |

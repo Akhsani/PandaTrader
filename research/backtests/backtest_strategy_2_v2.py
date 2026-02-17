@@ -9,19 +9,7 @@ import matplotlib.pyplot as plt
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from utils.regime_detector import CryptoRegimeDetector
-
-def _find_funding_path(symbol):
-    """Try multiple funding file naming patterns (aligns with fetch_1h_data and WFA)."""
-    base = symbol.replace('/', '_')
-    patterns = [
-        f"data/funding_rates/{base}_funding.csv",
-        f"data/funding_rates/{base}_USDT_funding.csv",
-        f"data/funding_rates/{base}_USDT_USDT_funding.csv",
-    ]
-    for p in patterns:
-        if os.path.exists(p):
-            return p
-    return None
+from utils.data_loader import find_funding_path
 
 
 def load_data(symbol, limit=2000):
@@ -30,7 +18,7 @@ def load_data(symbol, limit=2000):
     Always returns 1h data to match WFA methodology (funding rate mean reversion is intraday).
     """
     ohlcv_path = f"data/ohlcv/{symbol.replace('/', '_')}_1h.csv"
-    funding_path = _find_funding_path(symbol)
+    funding_path = find_funding_path(symbol)
 
     if os.path.exists(ohlcv_path) and funding_path:
         print(f"Loading local 1h data for {symbol}...")
