@@ -24,46 +24,60 @@ class FundingReversion(IStrategy):
     timeframe = '1h' # Using 1h to capture funding moves better than 1d
     can_short = True
     
-    # Strategy parameters
-    funding_window = 24  # 24 hours rolling window for Z-Score
-    z_score_threshold = 1.5 # Optimized via WFA
-    adx_threshold = 30 # Optimized via WFA
+    # Risk settings (Strategy specific overrides)
+    stoploss = -0.05
     
-    # Risk management
-    stoploss = -0.05       # 5% stop loss (Optimized)
+    # Strategy parameters
+    buy_params = {
+        "z_score_threshold": 1.5,
+        "adx_threshold": 30
+    }
     
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # 1. Funding Rate Z-Score
-        if 'funding_rate' in dataframe.columns:
-            dataframe['funding_mean'] = dataframe['funding_rate'].rolling(window=self.funding_window).mean()
-            dataframe['funding_std'] = dataframe['funding_rate'].rolling(window=self.funding_window).std()
+        # 1. Base Strategy Indicators (Regime Detection)
+        dataframe = super().populate_indicators(dataframe, metadata)
+        
+        # 2. Funding Rates (simulated for backtest if not Present)
+        # In Freqtrade live, this comes from data provider.
+        if 'funding_rate' not in dataframe.columns:
+            dataframe['funding_rate'] = 0.0 # Placeholder
             
-            # Avoid division by zero
-            dataframe['funding_zscore'] = (dataframe['funding_rate'] - dataframe['funding_mean']) / dataframe['funding_std']
-        else:
-            dataframe['funding_zscore'] = 0.0
-            
-        # 2. Market Regime (ADX)
-        dataframe['adx'] = ta.ADX(dataframe)
-            
+        # Z-Score of Funding Rate (Rolling 24h)
+        dataframe['funding_mean'] = dataframe['funding_rate'].rolling(24).mean()
+        dataframe['funding_std'] = dataframe['funding_rate'].rolling(24).std()
+        dataframe['funding_zscore'] = (dataframe['funding_rate'] - dataframe['funding_mean']) / dataframe['funding_std']
+        
+        # ADX for Trend Filtering
+        dataframe['adx'] = ta.ADX(dataframe, timeperiod=14)
+        
         return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # Long Entry: 
-        # 1. Funding extremely negative (Shorts paying Longs) -> Z-Score < -2
-        # 2. Market is not strongly trending (ADX < 25)
+        """
+        Entry Logic with Regime Gating
+        """
+        
+        # LONG Entry:
+        # 1. Funding is extremely negative (Short Squeeze potential)
+        # 2. Market is NOT in 'BEAR' regime (Master Switch)
+        # 3. ADX is low (Mean Reversion works best in chop)
+        
         dataframe.loc[
-            (dataframe['funding_zscore'] < -self.z_score_threshold) &
-            (dataframe['adx'] < self.adx_threshold) &
+            (dataframe['funding_zscore'] < -self.buy_params['z_score_threshold']) &
+            (dataframe['regime'] != 'BEAR') &  # <--- REGIME MASTER SWITCH
+            (dataframe['adx'] < self.buy_params['adx_threshold']) &
             (dataframe['volume'] > 0),
             'enter_long'] = 1
             
-        # Short Entry: 
-        # 1. Funding extremely positive (Longs paying Shorts) -> Z-Score > 2
-        # 2. Market is not strongly trending (ADX < 25)
+        # SHORT Entry:
+        # 1. Funding is extremely positive (Long Squeeze potential)
+        # 2. Market is NOT in 'BULL' regime? (Optional, maybe we allow shorts in Bull if funding is crazy)
+        # Let's be safe: Don't short in Strong Bull.
+        
         dataframe.loc[
-            (dataframe['funding_zscore'] > self.z_score_threshold) &
-            (dataframe['adx'] < self.adx_threshold) &
+            (dataframe['funding_zscore'] > self.buy_params['z_score_threshold']) &
+            (dataframe['regime'] != 'BULL') & 
+            (dataframe['adx'] < self.buy_params['adx_threshold']) &
             (dataframe['volume'] > 0),
             'enter_short'] = 1
             

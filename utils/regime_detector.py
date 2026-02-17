@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from hmmlearn.hmm import GaussianHMM
+from sklearn.preprocessing import StandardScaler
 import logging
 import warnings
 import talib.abstract as ta
@@ -16,29 +17,27 @@ class CryptoRegimeDetector:
         self.n_regimes = n_regimes
         self.random_state = random_state
         self.model = None
+        self.scaler = StandardScaler()
         self.regime_labels = {}
 
-    def prepare_features(self, price_df):
+    def prepare_features(self, price_df, fit_scaler=False):
         """
-        Features for regime detection (v2 - Improved):
+        Features for regime detection (v3 - Standardized & Trend Aware):
         1. Log Returns (Statistical stability)
-        2. Rolling Volatility (14d) - Derived from Log Returns
+        2. Rolling Volatility (14d)
         3. ADX (Trend Strength) - Distinguishes Sideways vs Trend
-        4. RSI (Momentum/Overbought) - Helpful for distinguishing Bull vs Bear
+        4. Trend Position (Close / SMA200) - Distinguishes Highs from Lows
         """
         df = price_df.copy()
         
-        # Ensure we have required columns for TA-Lib logic (open, high, low, close)
-        # normalize column names to lowercase
+        # Ensure we have required columns
         df.columns = [c.lower() for c in df.columns]
         
         required_cols = ['open', 'high', 'low', 'close', 'volume']
-        # check if all present, if not, try to map or error
         missing = [c for c in required_cols if c not in df.columns]
         if missing:
-             # Try to be flexible if only close is available (but ADX needs High/Low)
              if 'adx' in str(missing):
-                  logger.warning(f"Missing columns for ADX: {missing}. Falling back to limited features.")
+                  logger.warning(f"Missing columns for ADX: {missing}.")
         
         # 1. Log Returns
         df['log_ret'] = np.log(df['close'] / df['close'].shift(1))
@@ -51,38 +50,42 @@ class CryptoRegimeDetector:
             df['adx'] = ta.ADX(df, timeperiod=14)
         except Exception as e:
             logger.warning(f"Could not calculate ADX: {e}. Using proxy.")
-            df['adx'] = 0 # Placeholder if fails
+            df['adx'] = 0 
             
-        # 4. RSI (Additional Momentum)
+        # 4. Trend Position (Ratio to SMA200)
+        # Helps distinguish "Volatile Bull (ATH)" from "Volatile Bear (Crash)"
         try:
-            df['rsi'] = ta.RSI(df, timeperiod=14)
+            sma200 = ta.SMA(df, timeperiod=200)
+            df['trend_pos'] = df['close'] / sma200
         except:
-             df['rsi'] = 50
-        
+            df['trend_pos'] = 1.0
+            
         # Drop NaN values created by indicators
         df.dropna(inplace=True)
-        
-        # Scale/Normalize features? 
-        # GaussianHMM assumes Gaussian distribution. 
-        # ADX is 0-100, RSI is 0-100, LogRet is small float. 
-        # Ideally we should standardize. But for now let's pass raw and let HMM handle means/vars.
-        # Actually, standardization is highly recommended for fitting.
         
         if len(df) == 0:
              return np.array([]), df
 
-        # We use ADX, Volatility, and RSI? or LogRet?
-        # Research says: Volatility + Trend Strength are best for regimes.
-        features = df[['log_ret', 'volatility', 'adx']].values
-        return features, df
+        # Select features
+        feature_cols = ['log_ret', 'volatility', 'adx', 'trend_pos']
+        raw_features = df[feature_cols].values
+        
+        # Standardize Features (Critical for HMM)
+        if fit_scaler:
+            self.scaler.fit(raw_features)
+            
+        scaled_features = self.scaler.transform(raw_features)
+        
+        return scaled_features, df
 
     def fit(self, price_df):
         """Train HMM on historical data"""
-        if len(price_df) < 100:
-            logger.warning("Insufficient data to train HMM. Need at least 100 data points.")
+        if len(price_df) < 200: # Increased requirement for SMA200
+            logger.warning("Insufficient data to train HMM. Need at least 200 data points.")
             return None
 
-        features, df = self.prepare_features(price_df)
+        # Prepare and Fit Scaler
+        features, df = self.prepare_features(price_df, fit_scaler=True)
         
         if len(features) == 0:
              logger.warning("No features could be generated from data.")
@@ -91,7 +94,7 @@ class CryptoRegimeDetector:
         self.model = GaussianHMM(
             n_components=self.n_regimes,
             covariance_type="full",
-            n_iter=100,
+            n_iter=1000, # More iterations for convergence
             tol=0.01,
             random_state=self.random_state
         )
@@ -111,25 +114,32 @@ class CryptoRegimeDetector:
         regime_stats = df.groupby('regime').agg({
             'log_ret': ['mean'],
             'volatility': ['mean'],
-            'adx': ['mean']
+            'trend_pos': ['mean']
         })
         
         # Flatten columns
         if isinstance(regime_stats.columns, pd.MultiIndex):
              mean_ret = regime_stats[('log_ret', 'mean')]
              mean_vol = regime_stats[('volatility', 'mean')]
-             mean_adx = regime_stats[('adx', 'mean')]
+             mean_trend = regime_stats[('trend_pos', 'mean')]
         else:
              mean_ret = regime_stats['log_ret']['mean']
              mean_vol = regime_stats['volatility']['mean']
-             mean_adx = regime_stats['adx']['mean']
+             mean_trend = regime_stats['trend_pos']['mean']
         
-        # Sort regimes
+        # Sorting Logic (Improved):
+        # 1. Bear = Lowest Returns AND Low Trend Position
+        # 2. Bull = Highest Returns OR High Trend Position
+        
         regimes = mean_ret.index.tolist()
         
-        # 1. Bull vs Bear: Highest vs Lowest Return
+        # Sort by returns
         sorted_by_ret = mean_ret.sort_values()
+        
+        # Bear is generally lowest return
         bear_regime = sorted_by_ret.index[0]
+        
+        # Bull is generally highest return
         bull_regime = sorted_by_ret.index[-1]
         
         self.regime_labels = {
@@ -140,18 +150,14 @@ class CryptoRegimeDetector:
         remaining = [r for r in regimes if r not in [bear_regime, bull_regime]]
         
         if remaining:
-            # 2. Sideways vs Transition:
-            # Sideways should have Low ADX (No Trend) and Low/Med Volatility
-            # Transition might have High Volatility or Med ADX
-            
-            # Use ADX to distinguish
-            sorted_by_adx = mean_adx.loc[remaining].sort_values()
-            sideways_regime = sorted_by_adx.index[0] # Lowest ADX
+            # Distinguish Sideways from Transition/Crash using Volatility
+            sorted_by_vol = mean_vol.loc[remaining].sort_values()
+            sideways_regime = sorted_by_vol.index[0] # Lowest Volatility
             self.regime_labels[sideways_regime] = 'SIDEWAYS'
             
             if len(remaining) > 1:
-                # The last one is Transition
-                for r in sorted_by_adx.index[1:]:
+                # Any other remaining regimes are Transition
+                for r in sorted_by_vol.index[1:]:
                      self.regime_labels[r] = 'TRANSITION'
         
         df['regime_label'] = df['regime'].map(self.regime_labels)
@@ -161,7 +167,8 @@ class CryptoRegimeDetector:
         if self.model is None:
             raise ValueError("Model not fitted. Call fit() first.")
             
-        features, df = self.prepare_features(price_df)
+        # Don't refit scaler, just transform
+        features, df = self.prepare_features(price_df, fit_scaler=False)
         if len(features) == 0:
              return df 
 
@@ -175,7 +182,7 @@ class CryptoRegimeDetector:
         if self.model is None:
             return 'UNKNOWN'
             
-        features, _ = self.prepare_features(recent_prices)
+        features, _ = self.prepare_features(recent_prices, fit_scaler=False)
         if len(features) < 1:
             return 'UNKNOWN'
         
