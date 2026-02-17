@@ -36,7 +36,10 @@ This document tracks the development progress of the Crypto Bot strategies based
     - [x] Compare results (Sharpe, Drawdown) vs Buy & Hold. (Buy & Hold negative in test period; Trend Filter positive)
 - [x] **Implementation**
     - [x] Create `strategies/WeekendMomentum.py` for Freqtrade.
-    - [ ] Implement `populate_indicators`, `populate_entry_trend`, `populate_exit_trend`. (Done in file)
+    - [x] Implement `populate_indicators`, `populate_entry_trend`, `populate_exit_trend`. (Done in file)
+    - [x] **Improvements (Iter 1)**
+        - [x] Add ADX and ATR filters to Strategy.
+        - [x] Verify improvements with backtest.
 
 ### Strategy 2: Funding Rate Mean Reversion (Target: Week 1-2)
 - [x] **Data Collection**
@@ -45,6 +48,10 @@ This document tracks the development progress of the Crypto Bot strategies based
 - [x] **Research & Backtest**
     - [x] Implement `backtest_funding_mean_reversion` logic.
     - [x] Optimize entry/exit thresholds (default: >0.05% entry, <0.01% exit). (Note: daily data insufficient, recommended 1h)
+    - [x] **Improvements (Iter 1)**
+        - [x] Fetch 1h OHLCV and Funding Data.
+        - [x] Implement Z-Score based Mean Reversion.
+        - [x] Verify with 1h backtest.
 - [x] **Implementation**
     - [x] Create `strategies/FundingReversion.py`.
     - [x] Implement `Live Signal Monitor` (`utils/telegram_alerts.py`) for real-time funding alerts.

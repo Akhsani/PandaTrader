@@ -70,6 +70,10 @@ class WeekendMomentum(IStrategy):
         dataframe['ema50'] = ta.EMA(dataframe, timeperiod=50)
         dataframe['ema200'] = ta.EMA(dataframe, timeperiod=200)
         
+        # Momentum & Volatility
+        dataframe['adx'] = ta.ADX(dataframe)
+        dataframe['atr'] = ta.ATR(dataframe)
+        
         # Day of week (0=Monday, 6=Sunday)
         # Note: Freqtrade dataframe 'date' column is datetime
         dataframe['day_of_week'] = dataframe['date'].dt.dayofweek
@@ -86,6 +90,10 @@ class WeekendMomentum(IStrategy):
                 (dataframe['day_of_week'] == 4) &
                 # Trend Filter: EMA50 > EMA200 (Golden Cross / Bullish)
                 (dataframe['ema50'] > dataframe['ema200']) &
+                # ADX Filter: Trend strength > 20 (avoid weak trends)
+                (dataframe['adx'] > 20) &
+                # Volatility Filter: Avoid extreme volatility (ATR / Close < 0.05 i.e. 5% daily move)
+                ((dataframe['atr'] / dataframe['close']) < 0.05) &
                 # Volume check (optional, basic sanity)
                 (dataframe['volume'] > 0)
             ),

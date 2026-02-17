@@ -98,6 +98,42 @@ def run_strategy_1(symbol="BTC/USDT"):
     print(f"Buy & Hold Return: {bh.total_return():.2%}")
     print(f"Buy & Hold Max DD: {bh.max_drawdown():.2%}")
 
+    # --- ITERATION 1: Trend + ADX + Volatility + SL/TP ---
+    print(f"--- Iteration 1 (Filters + SL/TP) ---")
+    try:
+        # Need High/Low for ADX/ATR
+        high = df['high']
+        low = df['low']
+        adx = talib.ADX(high.values, low.values, close.values, timeperiod=14)
+        atr = talib.ATR(high.values, low.values, close.values, timeperiod=14)
+        
+        # Filters (Relaxed)
+        adx_filter = adx > 15
+        vol_filter = (atr / close) < 0.08
+        
+        entries_iter1 = is_friday & bullish_trend & adx_filter & vol_filter
+        
+        # Stop Loss: 3% (0.03), Take Profit: 5% (0.05)
+        pf_iter1 = vbt.Portfolio.from_signals(
+            close,
+            entries=entries_iter1,
+            exits=exits, # Exit on Monday if SL/TP didn't hit
+            init_cash=1000,
+            fees=0.001,
+            freq="1D",
+            sl_stop=0.03,
+            tp_stop=0.05
+        )
+        
+        print(f"Iter 1 Return: {pf_iter1.total_return():.2%}")
+        print(f"Iter 1 Sharpe: {pf_iter1.sharpe_ratio():.2f}")
+        print(f"Iter 1 Max DD: {pf_iter1.max_drawdown():.2%}")
+        print(f"Iter 1 Win Rate: {pf_iter1.trades.win_rate():.2%}")
+        print(f"Iter 1 Trade Count: {pf_iter1.trades.count()}")
+        
+    except Exception as e:
+        print(f"Error in Iteration 1: {e}")
+
 if __name__ == "__main__":
     symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT", "LINK/USDT"]
     for sym in symbols:

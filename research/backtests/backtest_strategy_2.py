@@ -5,7 +5,7 @@ import os
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-def load_data(symbol, timeframe='1d'):
+def load_data(symbol, timeframe='1h'):
     """Load OHLCV and Funding Rate data"""
     # Load OHLCV
     ohlcv_path = f"data/ohlcv/{symbol.replace('/', '_')}_{timeframe}.csv"
@@ -16,9 +16,6 @@ def load_data(symbol, timeframe='1d'):
     price_df = pd.read_csv(ohlcv_path, parse_dates=['datetime'], index_col='datetime')
     
     # Load Funding
-    # Handle different symbol formats if needed (e.g. BTC/USDT vs BTC/USDT:USDT)
-    # The collector saves as safe_symbol which replaces / and : with _
-    # ex: BTC/USDT:USDT -> BTC_USDT_USDT
     base_symbol = symbol.replace('/', '_')
     funding_path = f"data/funding_rates/{base_symbol}_USDT_funding.csv"
     
@@ -34,102 +31,109 @@ def load_data(symbol, timeframe='1d'):
     return price_df, funding_df
 
 def backtest_funding_mean_reversion(symbol, 
-                                     entry_threshold=0.0005, # 0.05%
-                                     exit_threshold=0.0001,  # 0.01%
-                                     stop_loss=0.02):        # 2%
+                                     z_score_threshold=2.0,
+                                     adx_threshold=25,
+                                     stop_loss=0.05):
     """
-    Backtest Funding Rate Mean Reversion
-    Entry: Funding > threshold (Short) or Funding < -threshold (Long)
-    Exit: Funding < exit_threshold (abs) or Stop Loss
+    Backtest Funding Rate Mean Reversion (1h)
     """
-    price_df, funding_df = load_data(symbol)
+    price_df, funding_df = load_data(symbol, timeframe='1h')
     if funding_df is None:
         return
         
-    print(f"\n--- Backtesting {symbol} ---")
+    print(f"\n--- Backtesting {symbol} (1h) ---")
     print(f"Data range: {price_df.index.min()} to {price_df.index.max()}")
     
-    # Resample funding to match price timeframe (1d)
-    # We take the mean funding rate of the day, or the last one? 
-    # Usually funding is every 8h. The 'sentiment' is best captured by the average or the extreme of the day.
-    # Let's use the mean for the day to smooth it, or look for ANY breach in the day (max/min).
-    # For a daily strategy, let's use the last closed funding rate of the previous day to enter at Open, or 
-    # if we assume we trade at Close, we use the funding rate OF that day.
-    # Let's simplisticly reindex to daily, ffilling.
-    
-    # Align data
+    # Merge and align
     df = price_df.copy()
-    # Funding data might have duplicates or multiple entries per day
-    # calculated weighted average or just mean? Mean is fine.
-    funding_daily = funding_df['fundingRate'].resample('1D').mean()
     
-    df['fundingRate'] = funding_daily
+    # Resample funding to hourly (ffill)
+    funding_hourly = funding_df['fundingRate'].resample('1h').ffill()
+    
+    # Join
+    df = df.join(funding_hourly)
     df['fundingRate'] = df['fundingRate'].fillna(method='ffill')
     
-    trades = []
-    position = None # {'side': 'long'|'short', 'price': 123, 'time': dt}
+    # Calculate Indicators
+    # 1. Z-Score
+    df['funding_mean'] = df['fundingRate'].rolling(window=24).mean()
+    df['funding_std'] = df['fundingRate'].rolling(window=24).std()
+    df['funding_zscore'] = (df['fundingRate'] - df['funding_mean']) / df['funding_std']
     
-    for i in range(1, len(df)-1):
-        # We look at data available at index i to decide trade at i (Close) or i+1 (Open).
-        # VectorBT/Freqtrade usually trade at Close of candle i or Open of i+1.
-        # Let's assume we trade at CLOSE of day i if signal exists.
-        
-        curr_date = df.index[i]
+    # 2. ADX (using pandas-ta or talib if available, simple fallback if not)
+    # Just use High-Low match for now or try talib
+    try:
+        import talib
+        df['adx'] = talib.ADX(df['high'], df['low'], df['close'], timeperiod=14)
+    except:
+        print("TALib not found, skipping ADX filter (all allowed)")
+        df['adx'] = 0 
+    
+    trades = []
+    position = None 
+    
+    for i in range(24, len(df)-1):
+        curr_time = df.index[i]
         curr_close = df['close'].iloc[i]
-        curr_funding = df['fundingRate'].iloc[i]
+        z_score = df['funding_zscore'].iloc[i]
+        adx = df['adx'].iloc[i]
         
-        # Check Exit first
+        # Check Exit
         if position:
-            pnl = 0
+            pnl_pct = 0
+            should_exit = False
             exit_reason = ''
             
-            # Check Stop Loss
             if position['side'] == 'long':
                 pnl_pct = (curr_close - position['entry_price']) / position['entry_price']
-            else:
+                # Exit if Z-Score crosses 0 (strict mean reversion)
+                if z_score > 0: 
+                    should_exit = True
+                    exit_reason = 'Mean Reverted'
+                elif pnl_pct < -stop_loss:
+                    should_exit = True
+                    exit_reason = 'Stop Loss'
+                    
+            else: # short
                 pnl_pct = (position['entry_price'] - curr_close) / position['entry_price']
-                
-            if pnl_pct < -stop_loss:
-                exit_reason = 'Stop Loss'
-                should_exit = True
-            elif abs(curr_funding) < exit_threshold:
-                 exit_reason = 'Funding Normal'
-                 should_exit = True
-            else:
-                should_exit = False
-                
+                # Exit if Z-Score crosses 0
+                if z_score < 0:
+                    should_exit = True
+                    exit_reason = 'Mean Reverted'
+                elif pnl_pct < -stop_loss:
+                    should_exit = True
+                    exit_reason = 'Stop Loss'
+            
             if should_exit:
                 trades.append({
                     'entry_time': position['entry_time'],
-                    'exit_time': curr_date,
+                    'exit_time': curr_time,
                     'side': position['side'],
                     'entry_price': position['entry_price'],
                     'exit_price': curr_close,
                     'pnl': pnl_pct,
-                    'exit_reason': exit_reason,
-                    'entry_funding': position['entry_funding'],
-                    'exit_funding': curr_funding
+                    'exit_reason': exit_reason
                 })
                 position = None
                 
         # Check Entry
         if position is None:
-            # Signal: Extreme Negative Funding -> LONG
-            if curr_funding < -entry_threshold:
-                position = {
-                    'side': 'long',
-                    'entry_price': curr_close,
-                    'entry_time': curr_date,
-                    'entry_funding': curr_funding
-                }
-            # Signal: Extreme Positive Funding -> SHORT
-            elif curr_funding > entry_threshold:
-                position = {
-                    'side': 'short',
-                    'entry_price': curr_close,
-                    'entry_time': curr_date,
-                    'entry_funding': curr_funding
-                }
+            # Filter: non-trending market
+            if adx < adx_threshold:
+                # Long: Z < -2
+                if z_score < -z_score_threshold:
+                    position = {
+                        'side': 'long',
+                        'entry_price': curr_close,
+                        'entry_time': curr_time
+                    }
+                # Short: Z > 2
+                elif z_score > z_score_threshold:
+                    position = {
+                        'side': 'short',
+                        'entry_price': curr_close,
+                        'entry_time': curr_time
+                    }
 
     # Analyze results
     if not trades:
@@ -142,7 +146,6 @@ def backtest_funding_mean_reversion(symbol,
     avg_pnl = results['pnl'].mean()
     total_return = (results['pnl'] + 1).prod() - 1
     
-    # Calculate Max Drawdown
     results['cum_ret'] = (results['pnl'] + 1).cumprod()
     results['cum_max'] = results['cum_ret'].cummax()
     results['drawdown'] = (results['cum_ret'] - results['cum_max']) / results['cum_max']

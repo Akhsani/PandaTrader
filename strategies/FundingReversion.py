@@ -25,57 +25,69 @@ class FundingReversion(IStrategy):
     can_short = True
     
     # Risk management
-    stoploss = -0.02
+    stoploss = -0.05       # 5% stop loss (wider for mean reversion)
     trailing_stop = True
-    trailing_stop_positive = 0.005
-    trailing_stop_positive_offset = 0.015
+    trailing_stop_positive = 0.01
+    trailing_stop_positive_offset = 0.02
     
     minimal_roi = {
         "0": 0.05,
-        "60": 0.02,
-        "120": 0.0
+        "24": 0.02,
+        "48": 0.01
     }
 
     # Strategy parameters
-    funding_entry_threshold = 0.0005 # 0.05%
-    funding_exit_threshold = 0.0001  # 0.01%
+    funding_window = 24  # 24 hours rolling window for Z-Score
+    z_score_threshold = 2.0
+    adx_threshold = 25 # ADX > 25 implies trend, we want ADX < 25 for mean reversion
     
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # Check if funding info is available. 
-        # In live/dry-run, we might need to fetch it or it comes in info.
-        # For backtesting, we assume it's loaded as a column or we can't really test it easily here.
-        
-        # Placeholder for funding rate if not present (to prevent errors if run without data)
-        if 'funding_rate' not in dataframe.columns:
-            dataframe['funding_rate'] = 0.0
+        # 1. Funding Rate Z-Score
+        if 'funding_rate' in dataframe.columns:
+            dataframe['funding_mean'] = dataframe['funding_rate'].rolling(window=self.funding_window).mean()
+            dataframe['funding_std'] = dataframe['funding_rate'].rolling(window=self.funding_window).std()
+            
+            # Avoid division by zero
+            dataframe['funding_zscore'] = (dataframe['funding_rate'] - dataframe['funding_mean']) / dataframe['funding_std']
+        else:
+            dataframe['funding_zscore'] = 0.0
+            
+        # 2. Market Regime (ADX)
+        dataframe['adx'] = ta.ADX(dataframe)
             
         return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # Long Entry: Funding extremely negative (Shorts paying Longs)
+        # Long Entry: 
+        # 1. Funding extremely negative (Shorts paying Longs) -> Z-Score < -2
+        # 2. Market is not strongly trending (ADX < 25)
         dataframe.loc[
-            (dataframe['funding_rate'] < -self.funding_entry_threshold) &
+            (dataframe['funding_zscore'] < -self.z_score_threshold) &
+            (dataframe['adx'] < self.adx_threshold) &
             (dataframe['volume'] > 0),
             'enter_long'] = 1
             
-        # Short Entry: Funding extremely positive (Longs paying Shorts)
+        # Short Entry: 
+        # 1. Funding extremely positive (Longs paying Shorts) -> Z-Score > 2
+        # 2. Market is not strongly trending (ADX < 25)
         dataframe.loc[
-            (dataframe['funding_rate'] > self.funding_entry_threshold) &
+            (dataframe['funding_zscore'] > self.z_score_threshold) &
+            (dataframe['adx'] < self.adx_threshold) &
             (dataframe['volume'] > 0),
             'enter_short'] = 1
             
         return dataframe
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # Exit Long: Funding normalizes
+        # Exit Long: Funding normalizes (Z-Score > -0.5)
         dataframe.loc[
-            (dataframe['funding_rate'].abs() < self.funding_exit_threshold) &
+            (dataframe['funding_zscore'] > -0.5) &
             (dataframe['volume'] > 0),
             'exit_long'] = 1
             
-        # Exit Short: Funding normalizes
+        # Exit Short: Funding normalizes (Z-Score < 0.5)
         dataframe.loc[
-            (dataframe['funding_rate'].abs() < self.funding_exit_threshold) &
+            (dataframe['funding_zscore'] < 0.5) &
             (dataframe['volume'] > 0),
             'exit_short'] = 1
             
