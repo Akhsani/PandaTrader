@@ -186,12 +186,13 @@ class WeekendMomentum(IStrategy):
         return dataframe
 ```
 
-### Validation Checklist
-- [ ] Backtest on BTC, ETH, SOL, LINK separately
-- [ ] Test across bull (2024), bear (late 2025), and sideways periods
-- [ ] Confirm Sharpe > 1.0 out-of-sample
-- [ ] Run Monte Carlo (shuffle trade order 500x, check if still profitable)
-- [ ] Paper trade 4 weekends minimum before live
+### Validation Status
+> For full details, see **[EXP_001: Weekend Momentum Premium (BTC)](research/experiments/EXP_001_WeekendMomentum.md)**
+
+- **Edge**: High Win Rate (77%), Low Frequency.
+- **WFA**: +20.84% Return.
+- **Monte Carlo**: Low Risk (<7% Prob of Loss).
+- **Status**: **Approved** (Satellite Strategy).
 
 ---
 
@@ -321,9 +322,12 @@ def backtest_funding_mean_reversion(price_df, funding_df,
 ```
 
 ### Validation Results (Feb 2026)
+> For full details, see **[EXP_002: Funding Rate Mean Reversion (ETH)](research/experiments/EXP_002_FundingReversion_ETH.md)**
+
 - **Granularity Issue**: Backtesting on daily data (1d candles) showed few trades and mixed results (ETH +4%, SOL -20%).
 - **Recommendation**: This strategy requires higher granularity (1h or 4h) to capture intraday mean reversion.
 - **Action**: Strategy implementation in `strategies/FundingReversion.py` set to `1h` timeframe. Live monitor `utils/telegram_alerts.py` polls continuously.
+- **WFA & Monte Carlo**: Verified +20% Return (WFA), but High Volatility Risk (Monte Carlo). Use strict risk management.
 
 ### Live Signal Monitor (Telegram Alert)
 

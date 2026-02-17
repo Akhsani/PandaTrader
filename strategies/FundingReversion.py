@@ -24,22 +24,13 @@ class FundingReversion(IStrategy):
     timeframe = '1h' # Using 1h to capture funding moves better than 1d
     can_short = True
     
-    # Risk management
-    stoploss = -0.05       # 5% stop loss (wider for mean reversion)
-    trailing_stop = True
-    trailing_stop_positive = 0.01
-    trailing_stop_positive_offset = 0.02
-    
-    minimal_roi = {
-        "0": 0.05,
-        "24": 0.02,
-        "48": 0.01
-    }
-
     # Strategy parameters
     funding_window = 24  # 24 hours rolling window for Z-Score
-    z_score_threshold = 2.0
-    adx_threshold = 25 # ADX > 25 implies trend, we want ADX < 25 for mean reversion
+    z_score_threshold = 1.5 # Optimized via WFA
+    adx_threshold = 30 # Optimized via WFA
+    
+    # Risk management
+    stoploss = -0.05       # 5% stop loss (Optimized)
     
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         # 1. Funding Rate Z-Score

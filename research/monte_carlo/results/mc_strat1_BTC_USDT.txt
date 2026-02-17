@@ -1,0 +1,7 @@
+simulations: 1000
+initial_capital: 1000
+median_final_equity: 1213.5285411277878
+ruin_probability: 0.069
+prob_dd_gt_20: 0.002
+VaR_95: 978.9043267914027
+worst_case_dd: -0.2751496526978806

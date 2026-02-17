@@ -22,9 +22,9 @@ TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "YOUR_TOKEN_HERE")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "YOUR_CHAT_ID")
 
 THRESHOLDS = {
-    'BTC/USDT:USDT': 0.0003,   # 0.03%
-    'ETH/USDT:USDT': 0.0004,   # 0.04%
-    'SOL/USDT:USDT': 0.0005,   # 0.05%
+    'BTC/USDT:USDT': 0.00015,   # 0.015% (Corresponding roughly to Z=1.5 on low vol)
+    'ETH/USDT:USDT': 0.0002,    # 0.02%
+    'SOL/USDT:USDT': 0.0003,    # 0.03%
 }
 
 async def send_telegram_message(bot, message):
