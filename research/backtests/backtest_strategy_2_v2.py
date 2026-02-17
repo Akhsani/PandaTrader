@@ -122,23 +122,32 @@ class FundingBacktester:
                         reason = 'Stop Loss'
                 
                 if exit:
-                    capital_new = capital * (1 + pnl)
-                    trades.append({'date': date, 'pnl': pnl, 'reason': reason, 'side': position['side']})
+                    # Apply Exit Fee/Slippage (0.10%)
+                    fee_slippage = 0.0010
+                    capital_new = capital * (1 + pnl) * (1 - fee_slippage)
+                    
+                    trades.append({'date': date, 'pnl': pnl - fee_slippage, 'reason': reason, 'side': position['side']})
                     position = None
                     capital = capital_new
             
             # ENTRY (1D Logic)
             if not position:
-                # LONG: Funding is negative (Z < -2)
+                # LONG: Funding is negative (Z < -1.5)
                 if z_score < -self.z_threshold:
                     if self.use_regime_filter and regime == 'BEAR':
                         continue 
+                    
+                    # Apply Entry Fee/Slippage (0.10%)
+                    capital = capital * (1 - 0.0010)
                     position = {'side': 'long', 'entry_price': price}
                 
                 # SHORT
                 elif z_score > self.z_threshold:
                     if self.use_regime_filter and regime == 'BULL':
                         continue
+                    
+                    # Apply Entry Fee/Slippage (0.10%)
+                    capital = capital * (1 - 0.0010)
                     position = {'side': 'short', 'entry_price': price}
             
             equity_curve.append(capital)
@@ -185,6 +194,9 @@ def run_comparison():
         print("SUCCESS: Optimized version has smaller drawdown.")
     else:
         print("FAIL: Optimized version did not reduce drawdown.")
+
+    # Save equity curve for correlation analysis
+    pd.Series(eq_opt, index=df_opt.index[-len(eq_opt):]).to_csv("research/backtests/equity_strat2_BTC_USDT.csv")
 
 if __name__ == "__main__":
     run_comparison()

@@ -78,24 +78,28 @@ def run():
         funding_cost_daily = 0.0003 # 0.03%
         
         # Vectorized Optimized Calculation
+        # Raw PnL = returns * signal * size
         raw_pnl = asset_returns * exec_signals * exec_sizes
         
-        # Apply Funding Cost Penalties
-        # Penalty applies if: Signal is SHORT (-1) AND Market is BULL (Hypothetical: we shorted into strength?)
-        # Wait - our trend filter BLOCKS shorts in Bull trends.
-        # So realistically, we only pay funding if the trend filter FAILED or we are shorting in specific edge cases.
-        # Let's assume we pay funding on ALL shorts for safety (Market is generally bullish/positive funding in crypto)
-        # unless it is a deep bear.
+        # Apply Transaction Costs (0.10% per side = 0.20% round trip)
+        # Entry cost when signal starts being non-zero
+        # Exit cost when signal returns to zero
+        # Shifted comparison for cost detection
+        trades = exec_signals.diff().abs().fillna(0)
+        transaction_costs = trades * 0.0010
         
+        # Apply Funding Cost Penalties (Already in v3 plan)
         is_short = (exec_signals == -1)
         funding_penalty = pd.Series(0.0, index=raw_pnl.index)
         funding_penalty[is_short] = funding_cost_daily 
         
-        opt_returns = raw_pnl - funding_penalty
+        opt_returns = raw_pnl - funding_penalty - transaction_costs
+        baseline_net_returns = (asset_returns * exec_signals) - transaction_costs
         
         # Clean up
-        baseline_returns = baseline_returns.dropna()
+        baseline_returns = baseline_net_returns.dropna()
         opt_returns = opt_returns.dropna()
+
         
         # Stats
         def calc_stats(rets):
@@ -116,6 +120,9 @@ def run():
             'improvement': opt_tot - base_tot
         }
 
+        # Save equity curve for correlation analysis
+        (1 + opt_returns).cumprod().to_csv(f"research/backtests/equity_strat3_{token.replace('/', '_')}.csv")
+        
     # Summary
     print("\n--- SUMMARY ---")
     avg_imp = np.mean([r['improvement'] for r in results.values()]) if results else 0

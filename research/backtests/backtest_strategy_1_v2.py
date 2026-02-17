@@ -50,6 +50,7 @@ class WeekendMomentumBacktester:
         position = 0
         trades = []
         entry_price = 0
+        equity_curve = [1000.0] * 200 # Initial gap
         
         for i in range(200, len(df)):
             curr_row = df.iloc[i]
@@ -62,17 +63,21 @@ class WeekendMomentumBacktester:
                 # 1. Stop Loss
                 if price <= entry_price * (1 - self.stoploss):
                     pnl = (price - entry_price) / entry_price
-                    capital *= (1 + pnl)
-                    trades.append({'symbol': 'Asset', 'date': date, 'type': 'stop_loss', 'pnl': pnl})
+                    # Apply 0.10% Exit Cost
+                    capital *= (1 + pnl) * (1 - 0.0010)
+                    trades.append({'symbol': 'Asset', 'date': date, 'type': 'stop_loss', 'pnl': pnl - 0.0010})
                     position = 0
+                    equity_curve.append(capital)
                     continue
                     
                 # 2. Time Exit (Monday)
                 if curr_row['day_of_week'] == 0: # Monday
                     pnl = (price - entry_price) / entry_price
-                    capital *= (1 + pnl)
-                    trades.append({'symbol': 'Asset', 'date': date, 'type': 'exit_monday', 'pnl': pnl})
+                    # Apply 0.10% Exit Cost
+                    capital *= (1 + pnl) * (1 - 0.0010)
+                    trades.append({'symbol': 'Asset', 'date': date, 'type': 'exit_monday', 'pnl': pnl - 0.0010})
                     position = 0
+                    equity_curve.append(capital)
                     continue
             
             # ENTRY LOGIC
@@ -85,10 +90,16 @@ class WeekendMomentumBacktester:
                         is_not_bear_regime = curr_row['regime'] != 'BEAR'
                         
                     if is_bull_trend and is_not_bear_regime:
+                        # Apply 0.10% Entry Cost
+                        capital *= (1 - 0.0010)
                         position = capital / price
                         entry_price = price
 
-        return capital, trades
+            # Track equity
+            curr_equity = capital if position == 0 else position * price
+            equity_curve.append(curr_equity)
+
+        return capital, trades, pd.Series(equity_curve, index=df.index)
 
 def run_portfolio_backtest():
     assets = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
@@ -104,7 +115,7 @@ def run_portfolio_backtest():
             df = fetch_data(asset, '1d', limit)
             tester = WeekendMomentumBacktester(use_regime_filter=True)
             df_processed = tester.prepare_data(df)
-            final_cap, trades = tester.run_simulation(df_processed)
+            final_cap, trades, equity_curve = tester.run_simulation(df_processed)
             
             # Tag trades with symbol
             for t in trades:
@@ -114,6 +125,10 @@ def run_portfolio_backtest():
             
             ret = (final_cap - 1000) / 1000
             print(f"{asset}: Return {ret:.2%} | Trades: {len(trades)}")
+
+            # Save equity curve for correlation analysis
+            os.makedirs("research/backtests", exist_ok=True)
+            equity_curve.to_csv(f"research/backtests/equity_strat1_{asset.replace('/', '_')}.csv")
             
         except Exception as e:
             print(f"Error testing {asset}: {e}")
