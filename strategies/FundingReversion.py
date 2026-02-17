@@ -1,13 +1,12 @@
-
 # Strategies/FundingReversion.py
-from freqtrade.strategy import IStrategy
 from pandas import DataFrame
 import talib.abstract as ta
-import freqtrade.vendor.qtpylib.indicators as qtpylib
 import pandas as pd
 import numpy as np
 
-class FundingReversion(IStrategy):
+from strategies.base_strategy import BaseStrategy
+
+class FundingReversion(BaseStrategy):
     """
     Funding Rate Mean Reversion Strategy
     

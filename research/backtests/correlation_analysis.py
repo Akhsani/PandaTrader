@@ -67,7 +67,7 @@ def analyze():
         return
 
     # Merge all
-    merged = pd.concat(dataframes, axis=1).dropna()
+    merged = pd.concat(dataframes, axis=1, sort=True).dropna()
     
     print(f"\nAligned Data: {len(merged)} days")
     
