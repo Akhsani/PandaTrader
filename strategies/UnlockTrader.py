@@ -9,15 +9,14 @@ class UnlockTrader:
     def generate_signals(self, price_data, token_symbol, use_trend_filter=False):
         """
         Generates buy/sell signals based on unlock events.
-        
-        Strategy:
-        1. Short/Exit 30 days before unlock if impact is negative.
-           - FILTER: Do NOT short if in strong bull trend (ADX > 30 and Price > SMA200) if use_trend_filter=True.
-        2. Long/Enter 14 days after unlock if impact is negative (expecting relief bounce/stabilization).
+        Returns a DataFrame with columns: ['signal', 'size_multiplier']
         """
         import talib
         
-        signals = pd.Series(index=price_data.index, data=0) # 0: Hold, -1: Short/Exit, 1: Long/Enter
+        # Initialize DataFrame
+        results = pd.DataFrame(index=price_data.index)
+        results['signal'] = 0
+        results['size_multiplier'] = 1.0
         
         # Calculate Indicators for Filter
         if use_trend_filter:
@@ -32,7 +31,6 @@ class UnlockTrader:
             sma200 = talib.SMA(close, timeperiod=200)
             
             # Bull Trend Condition: High ADX (>25) AND Price > SMA200
-            # We want to AVOID shorting into this.
             is_bull_trend = (adx > 25) & (close > sma200)
             is_bull_trend = pd.Series(is_bull_trend, index=price_data.index).fillna(False)
         else:
@@ -51,38 +49,43 @@ class UnlockTrader:
             long_start = unlock_date + timedelta(days=14)
             long_end = unlock_date + timedelta(days=20) 
             
-            # Check for overlapping data
-            # If the short window is within our price data range
-            if short_start in signals.index or short_end in signals.index:
-                # Apply Short Signal via mask
-                # Only short if NOT in bull trend
-                mask = (signals.index >= short_start) & (signals.index <= short_end)
-                
+            # SHORT SIGNALS
+            if short_start in results.index or short_end in results.index:
+                mask = (results.index >= short_start) & (results.index <= short_end)
                 if use_trend_filter:
-                    # Filter out days where bull trend is active
-                    trend_mask = is_bull_trend.reindex(signals.index).fillna(False)
+                    # Filter out days where bull trend is active (Don't short bull)
+                    trend_mask = is_bull_trend.reindex(results.index).fillna(False)
                     final_mask = mask & (~trend_mask)
-                    signals.loc[final_mask] = -1
+                    results.loc[final_mask, 'signal'] = -1
                 else:
-                    signals.loc[mask] = -1
+                    results.loc[mask, 'signal'] = -1
             
-            # Mark Long Signals (Re-entry)
-            # We generally take the relief bounce regardless of trend (or maybe only if NOT bear trend? Keep simple for now)
-            signals.loc[long_start:long_end] = 1
+            # LONG SIGNALS (Relief Bounce)
+            # Re-enter long after unlock.
+            # Graduated Sizing: If Bull Trend, increase size by 50%
             
-        return signals
+            long_mask = (results.index >= long_start) & (results.index <= long_end)
+            results.loc[long_mask, 'signal'] = 1
+            
+            # Apply Sizing Multiplier for Longs in Bull Trend
+            if use_trend_filter:
+                bull_rows = long_mask & is_bull_trend
+                results.loc[bull_rows, 'size_multiplier'] = 1.5
+            
+        return results
 
     def run_backtest(self, price_df, token_symbol):
         """
         Simple vector backtest.
         """
-        signals = self.generate_signals(price_df, token_symbol)
+        results_df = self.generate_signals(price_df, token_symbol, use_trend_filter=True)
+        signals = results_df['signal']
+        sizes = results_df['size_multiplier']
         
         # Calculate returns
-        # If Signal is -1, we are Short. If Signal is 1, we are Long. 0 is Cash.
-        # Daily Return * Signal. (Shift signal by 1 to avoid lookahead bias - trade execution next day)
+        # Return = Asset Return * Signal (shifted) * Size Multiplier (shifted)
         
         asset_returns = price_df['close'].pct_change()
-        strategy_returns = asset_returns * signals.shift(1)
+        strategy_returns = asset_returns * signals.shift(1) * sizes.shift(1)
         
         return strategy_returns.dropna()
