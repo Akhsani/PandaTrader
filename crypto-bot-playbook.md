@@ -50,6 +50,10 @@ python3 -c "import ccxt; print(ccxt.binance().fetch_ticker('BTC/USDT')['last'])"
 
 ---
 
+## STRATEGY SNAPSHOT
+> **[📄 READ THE FULL RESEARCH REVIEW HERE](research/comprehensive_strategy_review.md)**
+> A detailed analysis of all 5 strategies, including win rates, drawdowns, and parameter settings.
+
 ## THE 6 STRATEGIES: Ranked by Build Speed + Edge Strength
 
 I've distilled the research into 6 testable strategies, ordered by how fast you can build and validate them. Each has a clear hypothesis, data source, backtest approach, and deployment path.
