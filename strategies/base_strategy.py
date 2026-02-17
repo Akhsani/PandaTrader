@@ -77,8 +77,11 @@ class BaseStrategy(IStrategy):
         stop_distance_pct = abs(self.stoploss)
         stop_price = current_rate * (1 - stop_distance_pct) if side == 'long' else current_rate * (1 + stop_distance_pct)
         
+        # Check for strategy-specific risk override
+        strategy_risk = getattr(self, 'custom_risk_per_trade', None)
+        
         # Risk Manager Sizing
-        safe_amount = self.risk_manager.calculate_position_size(current_rate, stop_price)
+        safe_amount = self.risk_manager.calculate_position_size(current_rate, stop_price, risk_per_trade=strategy_risk)
         
         # Convert to stake currency (e.g. USDT)
         stake = safe_amount * current_rate

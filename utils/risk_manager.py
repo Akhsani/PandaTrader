@@ -84,7 +84,7 @@ class RiskManager:
             
         return True
 
-    def calculate_position_size(self, entry_price: float, stop_loss_price: float) -> float:
+    def calculate_position_size(self, entry_price: float, stop_loss_price: float, risk_per_trade: float = None) -> float:
         """
         Calculate safe position size based on risk per trade.
         Position Size = (Account Value * Risk %) / (Entry - Stop Loss)
@@ -92,7 +92,9 @@ class RiskManager:
         if entry_price <= 0 or stop_loss_price <= 0:
             return 0.0
             
-        risk_amount = self.current_capital * self.max_risk_per_trade
+        target_risk = risk_per_trade if risk_per_trade is not None else self.max_risk_per_trade
+        risk_amount = self.current_capital * target_risk
+        
         price_diff = abs(entry_price - stop_loss_price)
         
         if price_diff == 0:

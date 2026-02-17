@@ -8,3 +8,6 @@ scikit-learn
 matplotlib
 requests
 seaborn
+pandas-ta-openbb
+ta-lib
+# freqtrade

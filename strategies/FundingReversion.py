@@ -26,6 +26,7 @@ class FundingReversion(IStrategy):
     
     # Risk settings (Strategy specific overrides)
     stoploss = -0.05
+    custom_risk_per_trade = 0.0025 # 0.25% Risk per trade (High Frequency/Reversion)
     
     # Strategy parameters
     buy_params = {

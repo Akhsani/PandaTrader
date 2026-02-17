@@ -12,60 +12,47 @@ from freqtrade.strategy import (BooleanParameter, CategoricalParameter, DecimalP
 # --- Add your lib to import here ---
 import talib.abstract as ta
 import freqtrade.vendor.qtpylib.indicators as qtpylib
+from strategies.base_strategy import BaseStrategy
 
-class WeekendMomentum(IStrategy):
+class WeekendMomentum(BaseStrategy):
     """
-    Strategy 1: Weekend Momentum Premium
+    Strategy 1: Weekend Momentum Premium (v2 - Optimized)
     
     Hypothesis:
     Crypto returns on weekends (Sat-Sun) significantly exceed weekday returns.
-    Enhanced with a Trend Filter (EMA50 > EMA200) to avoid trading in bear markets.
+    Enhanced with a Trend Filter (EMA50 > EMA200) AND Regime Gating.
     
-    Setup:
-    - Timeframe: 1d
-    - Entry: Friday Close (implied by checking if today is Friday and trend is bullish)
-    - Exit: Monday Close (implied by checking if today is Monday)
-    
+    Optimizations v2:
+    - Inherits BaseStrategy (Risk Manager + Regime Detector)
+    - Stoploss tightened to -3% (from 5%)
+    - Regime Gating: NO TRADES in 'BEAR' regime (Master Switch)
     """
     
-    # Strategy interface version - allow new iterations of the strategy interface.
-    # Check the documentation or the Sample strategy to get the latest version.
     INTERFACE_VERSION = 3
-
-    # Minimal ROI designed for the strategy.
-    # We are not using ROI here, we exit based on time (Monday).
-    # But Freqtrade requires this dict. We set it to something high to avoid interference,
-    # or low if we want to scalp. The playbook suggests time-based exit.
-    # However, playbook had: minimal_roi = {"0": 0.05, "3": 0.02}
+    
+    # ROI: We ideally exit on Monday, but take profit if lucky
     minimal_roi = {
-        "0": 0.05, # 5% profit - take it
-        "3": 0.02, # 2% profit after 3 days
-        "7": 0.01  # 1% profit after 7 days
+        "0": 0.05, 
+        "3": 0.03, 
     }
 
-    # Optimal stoploss designed for the strategy.
-    # Playbook: stoploss = -0.03 (3%)
+    # Optimization: Tightened from -0.05 to -0.03
     stoploss = -0.03
 
-    # Trailing stop:
+    # Trailing stop
     trailing_stop = True
     trailing_stop_positive = 0.01
     trailing_stop_positive_offset = 0.02
     trailing_only_offset_is_reached = True
 
-    # Run "populate_indicators" on the startup period (e.g. 200 candles for EMA200)
     startup_candle_count: int = 200
-
-    # Calculated timeframe
     timeframe = '1d'
-
-    # Can this strategy go short?
     can_short = False
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        """
-        Adds several different TA indicators to the given DataFrame
-        """
+        # 1. Base Strategy Indicators (Regime Detection)
+        dataframe = super().populate_indicators(dataframe, metadata)
+        
         # Trend Indicators
         dataframe['ema50'] = ta.EMA(dataframe, timeperiod=50)
         dataframe['ema200'] = ta.EMA(dataframe, timeperiod=200)
@@ -74,27 +61,34 @@ class WeekendMomentum(IStrategy):
         dataframe['adx'] = ta.ADX(dataframe)
         dataframe['atr'] = ta.ATR(dataframe)
         
-        # Day of week (0=Monday, 6=Sunday)
-        # Note: Freqtrade dataframe 'date' column is datetime
+        # Day of week (0=Monday, ... 4=Friday, ... 6=Sunday)
         dataframe['day_of_week'] = dataframe['date'].dt.dayofweek
 
         return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        Based on TA indicators, populates the entry signal for the given dataframe
+        Entry Logic:
+        1. It is Friday
+        2. Regime is NOT Bear (Master Switch)
+        3. Long Term Trend is Bullish (EMA50 > EMA200)
         """
         dataframe.loc[
             (
                 # Entry on Friday (4)
                 (dataframe['day_of_week'] == 4) &
+                
+                # REGIME MASTER SWITCH: No trades in Bear Market
+                # This protects against "Weekend Crashes" in Bear Markets
+                (dataframe['regime'] != 'BEAR') &
+                
                 # Trend Filter: EMA50 > EMA200 (Golden Cross / Bullish)
                 (dataframe['ema50'] > dataframe['ema200']) &
+                
                 # ADX Filter: Trend strength > 20 (avoid weak trends)
                 (dataframe['adx'] > 20) &
-                # Volatility Filter: Avoid extreme volatility (ATR / Close < 0.05 i.e. 5% daily move)
-                ((dataframe['atr'] / dataframe['close']) < 0.05) &
-                # Volume check (optional, basic sanity)
+                
+                # Volume check
                 (dataframe['volume'] > 0)
             ),
             'enter_long'] = 1
@@ -103,7 +97,8 @@ class WeekendMomentum(IStrategy):
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
-        Based on TA indicators, populates the exit signal for the given dataframe
+        Exit Logic:
+        1. It is Monday
         """
         dataframe.loc[
             (
