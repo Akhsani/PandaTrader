@@ -32,6 +32,8 @@ class WeekendMomentumBacktester:
         dataframe['ema50'] = ta.EMA(dataframe, timeperiod=50)
         dataframe['ema200'] = ta.EMA(dataframe, timeperiod=200)
         dataframe['adx'] = ta.ADX(dataframe)
+        dataframe['atr'] = ta.ATR(dataframe, timeperiod=14)
+        dataframe['atr_p75'] = dataframe['atr'].rolling(200).quantile(0.75)
         dataframe['day_of_week'] = dataframe.index.dayofweek
         
         # Fit Detector
@@ -88,8 +90,11 @@ class WeekendMomentumBacktester:
                     is_not_bear_regime = True
                     if self.use_regime_filter:
                         is_not_bear_regime = curr_row['regime'] != 'BEAR'
-                        
-                    if is_bull_trend and is_not_bear_regime:
+                    # Volatility gate: ATR below 75th percentile (skip high-vol weekends)
+                    atr_p75 = curr_row.get('atr_p75', np.nan)
+                    low_vol = np.isnan(atr_p75) or curr_row['atr'] < atr_p75
+
+                    if is_bull_trend and is_not_bear_regime and low_vol:
                         # Apply 0.10% Entry Cost
                         capital *= (1 - 0.0010)
                         position = capital / price
@@ -103,13 +108,14 @@ class WeekendMomentumBacktester:
 
 def run_portfolio_backtest():
     assets = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
-    limit = 1000 # Days
-    
+    limit = 1000  # Days
+
     total_trades = []
-    
+    equity_curves = {}  # Collect for daily-return Sharpe
+
     print("\n--- Strategy 1 v2 Optimization Backtest ---")
-    print(f"Config: StopLoss=3%, Regime Filter=ON")
-    
+    print(f"Config: StopLoss=3%, Regime Filter=ON, Volatility Gate (ATR<75pct)=ON")
+
     for asset in assets:
         try:
             df = fetch_data(asset, '1d', limit)
@@ -122,7 +128,8 @@ def run_portfolio_backtest():
                 t['symbol'] = asset
                 
             total_trades.extend(trades)
-            
+            equity_curves[asset] = equity_curve
+
             ret = (final_cap - 1000) / 1000
             print(f"{asset}: Return {ret:.2%} | Trades: {len(trades)}")
 
@@ -148,11 +155,22 @@ def run_portfolio_backtest():
     
     print(f"Win Rate: {win_rate:.2%}")
     print(f"Avg PnL per Trade: {avg_pnl:.2%}")
-    
-    # Sharpe Ratio (Approx Daily)
-    # Group by date to see portfolio daily volatility
-    # This is a simplification
-    print(f"Sharpe (Trade-based): {trade_df['pnl'].mean() / trade_df['pnl'].std():.2f}")
+
+    # Sharpe: Trade-based (simple) and Daily-return (standard)
+    trade_sharpe = trade_df['pnl'].mean() / trade_df['pnl'].std() if trade_df['pnl'].std() > 0 else 0
+    print(f"Sharpe (Trade-based): {trade_sharpe:.2f}")
+
+    # Daily-return Sharpe: combine equity curves, compute portfolio daily returns
+    if len(equity_curves) >= 1:
+        all_dates = pd.concat([ec.index.to_series() for ec in equity_curves.values()]).drop_duplicates().sort_values()
+        combined = pd.DataFrame(index=all_dates)
+        for asset, ec in equity_curves.items():
+            combined[asset] = ec.reindex(all_dates).ffill().bfill().fillna(1000.0)
+        total_equity = combined.sum(axis=1)
+        daily_returns = total_equity.pct_change().dropna()
+        if len(daily_returns) > 1 and daily_returns.std() > 0:
+            daily_sharpe = daily_returns.mean() / daily_returns.std() * np.sqrt(252)
+            print(f"Sharpe (Daily return, ann.): {daily_sharpe:.2f}")
 
 
 if __name__ == "__main__":

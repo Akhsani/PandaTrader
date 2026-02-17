@@ -10,41 +10,62 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 
 from utils.regime_detector import CryptoRegimeDetector
 
+def _find_funding_path(symbol):
+    """Try multiple funding file naming patterns (aligns with fetch_1h_data and WFA)."""
+    base = symbol.replace('/', '_')
+    patterns = [
+        f"data/funding_rates/{base}_funding.csv",
+        f"data/funding_rates/{base}_USDT_funding.csv",
+        f"data/funding_rates/{base}_USDT_USDT_funding.csv",
+    ]
+    for p in patterns:
+        if os.path.exists(p):
+            return p
+    return None
+
+
 def load_data(symbol, limit=2000):
-    # This function expects CSV data to be present in data/ohlcv and data/funding_rates
-    # For this script, we will mock the loading or check if files exist.
-    # If not, we might need to fetch data. 
-    # Let's assume the user has the data from previous steps or we use ccxt to fetch if missing.
-    
-    # Check for local files first
+    """
+    Load 1h OHLCV and funding data. Tries local files first, then fetches via fetch_1h_data.
+    Always returns 1h data to match WFA methodology (funding rate mean reversion is intraday).
+    """
     ohlcv_path = f"data/ohlcv/{symbol.replace('/', '_')}_1h.csv"
-    funding_path = f"data/funding_rates/{symbol.replace('/', '_')}_funding.csv" # Standardized name
-    
-    if os.path.exists(ohlcv_path) and os.path.exists(funding_path):
-        print(f"Loading local data for {symbol}...")
+    funding_path = _find_funding_path(symbol)
+
+    if os.path.exists(ohlcv_path) and funding_path:
+        print(f"Loading local 1h data for {symbol}...")
         price_df = pd.read_csv(ohlcv_path, parse_dates=['datetime'], index_col='datetime')
         funding_df = pd.read_csv(funding_path, parse_dates=['datetime'], index_col='datetime')
+        if 'fundingRate' not in funding_df.columns and 'funding_rate' in funding_df.columns:
+            funding_df = funding_df.rename(columns={'funding_rate': 'fundingRate'})
         return price_df, funding_df
-    else:
-        print(f"Local data not found for {symbol}. Fetching new data...")
-        import ccxt
-        exchange = ccxt.binance()
-        
-        # 1. Fetch Daily Data (1500 days) to cover 2022 Bear Market
-        ohlcv = exchange.fetch_ohlcv(symbol, '1d', limit=1500)
-        price_df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-        price_df['datetime'] = pd.to_datetime(price_df['timestamp'], unit='ms')
-        price_df.set_index('datetime', inplace=True)
-        
-        # 2. Synthetic Funding for Testing
-        # Increased volatility to trigger Z-scores
-        np.random.seed(42)
-        volatility = price_df['close'].pct_change().rolling(14).std()
-        # Noise increased to 0.0005 (0.05%)
-        funding_rates = np.random.normal(0, 0.0005, len(price_df)) + (volatility * 0.5 * np.random.choice([1, -1], len(price_df)))
-        funding_df = pd.DataFrame({'fundingRate': funding_rates}, index=price_df.index)
-        
-        return price_df, funding_df
+
+    print(f"Local 1h data not found for {symbol}. Fetching via fetch_1h_data...")
+    from utils.fetch_1h_data import fetch_history, fetch_funding
+
+    os.makedirs("data/ohlcv", exist_ok=True)
+    os.makedirs("data/funding_rates", exist_ok=True)
+
+    # Fetch 1h OHLCV (730 days to cover regime history)
+    price_df = fetch_history(symbol, timeframe='1h', days=730)
+    price_df.to_csv(ohlcv_path)
+    print(f"Saved {len(price_df)} rows to {ohlcv_path}")
+
+    # Fetch real funding rates (Binance Futures)
+    funding_df = fetch_funding(symbol, days=730)
+    if funding_df.empty or 'fundingRate' not in funding_df.columns:
+        if 'funding_rate' in funding_df.columns:
+            funding_df = funding_df.rename(columns={'funding_rate': 'fundingRate'})
+        else:
+            raise FileNotFoundError(
+                f"Funding data for {symbol} is empty or missing 'fundingRate' column. "
+                "Run: python utils/fetch_1h_data.py"
+            )
+    funding_path_out = f"data/funding_rates/{symbol.replace('/', '_')}_funding.csv"
+    funding_df.to_csv(funding_path_out)
+    print(f"Saved funding to {funding_path_out}")
+
+    return price_df, funding_df
 
 class FundingBacktester:
     def __init__(self, use_regime_filter=False):
@@ -59,9 +80,9 @@ class FundingBacktester:
         df = df.join(funding_df[['fundingRate']])
         df['fundingRate'] = df['fundingRate'].ffill()
         
-        # Indicators
-        df['funding_mean'] = df['fundingRate'].rolling(window=20).mean()
-        df['funding_std'] = df['fundingRate'].rolling(window=20).std()
+        # Indicators (24-bar window for 1h data, matches WFA methodology)
+        df['funding_mean'] = df['fundingRate'].rolling(window=24).mean()
+        df['funding_std'] = df['fundingRate'].rolling(window=24).std()
         df['funding_zscore'] = (df['fundingRate'] - df['funding_mean']) / df['funding_std']
         
         # ADX
@@ -70,7 +91,7 @@ class FundingBacktester:
         except:
              df['adx'] = 0
         
-        # Regime Detection features (On Daily Data)
+        # Regime Detection (HMM on 1h data)
         if self.use_regime_filter:
             if len(df) > 200:
                 self.detector.fit(df)
@@ -130,7 +151,7 @@ class FundingBacktester:
                     position = None
                     capital = capital_new
             
-            # ENTRY (1D Logic)
+            # ENTRY (1h Logic)
             if not position:
                 # LONG: Funding is negative (Z < -1.5)
                 if z_score < -self.z_threshold:
@@ -154,25 +175,24 @@ class FundingBacktester:
             
         return capital, trades, equity_curve
 
-def run_comparison():
-    symbol = 'BTC/USDT'
-    limit = 1500 
-    
+def run_comparison(symbol='BTC/USDT'):
+    limit = 1500
+
     print(f"\n--- Strategy 2 Optimization (v2): Regime Gating Test ({symbol}) ---")
-    
-    # Load Data (1D to ensure enough history for Regime)
+
+    # Load Data (1h to match WFA methodology - funding reversion is intraday)
     price, funding = load_data(symbol, limit)
-    
+
     # 1. Baseline Run
     tester_base = FundingBacktester(use_regime_filter=False)
     df_base = tester_base.prepare_data(price, funding)
     cap_base, trades_base, eq_base = tester_base.run(df_base)
-    
+
     # 2. Optimized Run
     tester_opt = FundingBacktester(use_regime_filter=True)
     df_opt = tester_opt.prepare_data(price, funding)
     cap_opt, trades_opt, eq_opt = tester_opt.run(df_opt)
-    
+
     # Stats Calculation
     def get_max_dd(eq_curve):
         ts = pd.Series(eq_curve)
@@ -182,21 +202,51 @@ def run_comparison():
 
     dd_base = get_max_dd(eq_base)
     dd_opt = get_max_dd(eq_opt)
-    
+
     print("\n--- RESULTS ---")
     print(f"BASELINE (No Filter): Return={(cap_base-1000)/1000:.2%} | MaxDD={dd_base:.2%} | Trades={len(trades_base)}")
     print(f"OPTIMIZED (With Filter): Return={(cap_opt-1000)/1000:.2%} | MaxDD={dd_opt:.2%} | Trades={len(trades_opt)}")
-    
-    improvement = dd_opt - dd_base 
+
+    improvement = dd_opt - dd_base
     print(f"Drawdown Improvement: {abs(dd_opt - dd_base):.2%} points")
-    
-    if dd_opt > dd_base: 
+
+    if dd_opt > dd_base:
         print("SUCCESS: Optimized version has smaller drawdown.")
     else:
         print("FAIL: Optimized version did not reduce drawdown.")
 
     # Save equity curve for correlation analysis
-    pd.Series(eq_opt, index=df_opt.index[-len(eq_opt):]).to_csv("research/backtests/equity_strat2_BTC_USDT.csv")
+    safe_name = symbol.replace('/', '_')
+    pd.Series(eq_opt, index=df_opt.index[-len(eq_opt):]).to_csv(f"research/backtests/equity_strat2_{safe_name}.csv")
+
+    return {
+        'symbol': symbol,
+        'cap_base': cap_base,
+        'cap_opt': cap_opt,
+        'dd_base': dd_base,
+        'dd_opt': dd_opt,
+        'trades_base': len(trades_base),
+        'trades_opt': len(trades_opt),
+    }
+
 
 if __name__ == "__main__":
-    run_comparison()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--symbol', default='BTC/USDT', help='Symbol to test (e.g. BTC/USDT, ETH/USDT)')
+    parser.add_argument('--both', action='store_true', help='Run on both BTC and ETH (WFA showed +20%% on ETH)')
+    args = parser.parse_args()
+
+    if args.both:
+        results = []
+        for sym in ['BTC/USDT', 'ETH/USDT']:
+            r = run_comparison(sym)
+            results.append(r)
+        print("\n--- MULTI-ASSET SUMMARY ---")
+        for r in results:
+            ret_base = (r['cap_base'] - 1000) / 1000
+            ret_opt = (r['cap_opt'] - 1000) / 1000
+            print(f"{r['symbol']}: Baseline {ret_base:.1%} / {r['trades_base']} trades | "
+                  f"Filtered {ret_opt:.1%} / {r['trades_opt']} trades | DD {r['dd_base']:.1%} -> {r['dd_opt']:.1%}")
+    else:
+        run_comparison(args.symbol)

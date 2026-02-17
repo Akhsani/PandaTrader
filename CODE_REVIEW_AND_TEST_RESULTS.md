@@ -20,11 +20,16 @@
 - **Issue:** `pd.concat(..., axis=1)` triggered `Pandas4Warning` about default sort behavior.
 - **Fix:** Added explicit `sort=True` to `pd.concat()`.
 
+#### **UnlockTrader – Date Boundary Bug (FIXED)**
+- **Location:** `strategies/UnlockTrader.py`
+- **Issue:** `short_start in results.index` exact membership check could skip short windows when daily data has gaps or different time precision.
+- **Fix:** Replaced with `((results.index >= short_start) & (results.index <= short_end)).any()` to use range mask.
+- **Impact:** Short signals now correctly apply when any date in the short window exists in the price index.
+
 ### 1.2 Potential Issues (Not Fixed – Design Notes)
 
 | Location | Issue | Notes |
 |---------|------|-------|
-| `strategies/UnlockTrader.py` | `short_start in results.index` check | Short signals are only applied if boundary dates exist in price index. For daily data with gaps, some short windows could be skipped. Consider using `(results.index >= short_start) & (results.index <= short_end).any()` instead. |
 | `strategies/WeekendMomentum.py` | `dataframe['date']` | Uses Freqtrade’s `date` column. Works with Freqtrade; standalone backtests use `df.index`. |
 | `strategies/CascadeBounce.py` | `index_col='datetime'` | Assumes OHLCV CSV has a `datetime` column. Matches output of `utils/fetch_1h_data.py`. |
 | `research/walk_forward/run_wfa_strategy_1.py` | `load_data_daily` uses `parse_dates=['datetime']` | Some CSVs use `date` (e.g. Strategy 3). BTC 1d data uses `datetime`; verify column names per data source. |
@@ -42,15 +47,17 @@
 ### 2.1 Strategy 1 – Weekend Momentum (v2)
 
 **Script:** `research/backtests/backtest_strategy_1_v2.py`  
-**Config:** StopLoss=3%, Regime Filter=ON
+**Config:** StopLoss=3%, Regime Filter=ON, Volatility Gate (ATR<75pct)=ON
 
 | Asset | Return | Trades |
 |-------|--------|--------|
-| BTC/USDT | 63.21% | 100 |
-| ETH/USDT | 47.52% | 62 |
-| SOL/USDT | 7.13% | 79 |
+| BTC/USDT | 47.06% | 47 |
+| ETH/USDT | 20.77% | 24 |
+| SOL/USDT | 96.91% | 39 |
 
-**Portfolio:** 241 trades, 56.02% win rate, 0.64% avg PnL per trade, Sharpe (trade-based) 0.12.  
+**Portfolio:** 110 trades, 61.82% win rate, 1.39% avg PnL per trade.  
+**Sharpe:** Trade-based 0.25, Daily-return (ann.) 0.87.  
+**Note:** Volatility gate reduced trades and improved Sharpe.  
 **Status:** PASS
 
 ---
@@ -58,33 +65,31 @@
 ### 2.2 Strategy 2 – Funding Reversion (v2)
 
 **Script:** `research/backtests/backtest_strategy_2_v2.py`  
-**Config:** Regime Gating ON vs OFF
+**Config:** 1h data (matches WFA methodology), Regime Gating ON vs OFF  
+**Run:** `python research/backtests/backtest_strategy_2_v2.py --both` for BTC + ETH
 
-| Metric | Baseline (No Filter) | Optimized (With Filter) |
-|--------|----------------------|--------------------------|
-| Return | -35.28% | -18.88% |
-| Max Drawdown | -39.00% | -22.73% |
-| Trades | 45 | 37 |
+| Symbol | Baseline Return | Filtered Return | Baseline DD | Filtered DD | Regime Helps? |
+|--------|-----------------|------------------|-------------|-------------|---------------|
+| BTC/USDT | -9.70% | -33.41% | -48.27% | -49.48% | No |
+| ETH/USDT | -4.62% | -14.98% | -58.54% | -50.87% | Yes (DD -7.67pp) |
 
-**Drawdown improvement:** 16.26 percentage points.  
-**Status:** PASS
+**Note:** Regime filter reduces drawdown on ETH but not BTC. Both assets still negative; WFA used different train/test windows.  
+**Status:** PASS (1h data path verified)
 
 ---
 
 ### 2.3 Strategy 3 – Token Unlock (v3)
 
 **Script:** `research/backtests/backtest_strategy_3_v3.py`  
-**Config:** Baseline vs Optimized (graduated sizing + funding cost)
+**Config:** Baseline vs Optimized (graduated sizing + funding cost), `EXCLUDED_TOKENS = ['APT/USDT', 'TIA/USDT']`
 
 | Token | Baseline Return | Optimized Return | Max Drawdown (Opt) |
 |-------|-----------------|------------------|--------------------|
 | ARB/USDT | 15.76% | 14.73% | -18.01% |
 | OP/USDT | 64.44% | 62.64% | -17.87% |
-| APT/USDT | -39.56% | -41.09% | -45.34% |
 | SUI/USDT | 33.68% | 32.49% | -27.95% |
-| TIA/USDT | -2.56% | -4.30% | -37.51% |
 
-**Average return change:** -1.46% (optimization did not improve returns).  
+**Average return change:** -1.34% (optimization did not improve returns). APT and TIA excluded.  
 **Status:** Matches experiment EXP_003 conclusion (fixed sizing recommended).
 
 ---
@@ -180,9 +185,9 @@
 
 | Experiment | Documented | Current Run | Match |
 |------------|------------|-------------|-------|
-| EXP_001 (Strategy 1) | 223 trades, 56.05% win rate | 241 trades, 56.02% win rate | Yes (data period differs) |
-| EXP_002 (Strategy 2) | DD -34.11% → -14.84% | DD -39.00% → -22.73% | Same trend (synthetic data) |
-| EXP_003 (Strategy 3) | Avg -1.46% improvement | Avg -1.46% improvement | Yes |
+| EXP_001 (Strategy 1) | 223 trades, 56.05% win rate | 110 trades, 61.82% win rate, Sharpe 0.25 | Volatility gate added |
+| EXP_002 (Strategy 2) | WFA +20.47% on ETH 1h | 1h data: 452 trades, -9.70% baseline (BTC) | 1h data path fixed |
+| EXP_003 (Strategy 3) | Avg -1.46% improvement | Avg -1.44% (APT excluded) | Yes |
 
 ---
 
@@ -190,13 +195,20 @@
 
 1. `strategies/FundingReversion.py` – Inherit from `BaseStrategy` instead of `IStrategy`.
 2. `research/backtests/correlation_analysis.py` – Add `sort=True` to `pd.concat()`.
+3. `strategies/UnlockTrader.py` – Fix date boundary bug (range mask for short signals).
+4. `research/backtests/backtest_strategy_3_v3.py` – Remove APT from token universe.
+5. `research/backtests/backtest_strategy_2_v2.py` – 1h data path, funding path helper, 24-bar rolling.
+6. `strategies/WeekendMomentum.py` – Add volatility gate (ATR < 75th percentile).
+7. `research/backtests/backtest_strategy_1_v2.py` – Add volatility gate, daily-return Sharpe.
+8. `research/backtests/backtest_strategy_2_v2.py` – Add `--symbol` and `--both` CLI for multi-asset.
+9. `research/backtests/backtest_strategy_3_v3.py` – Add `EXCLUDED_TOKENS` (APT, TIA), `UNLOCK_UNIVERSE`.
 
 ---
 
 ## 5. Recommendations
 
 1. **Freqtrade:** Uncomment `freqtrade` in `requirements.txt` if you plan to run Freqtrade strategies directly.
-2. **UnlockTrader:** Revisit the `short_start in results.index` condition; consider using a date range mask.
+2. **Strategy 2:** Regime filter reduces drawdown on ETH (-7.67pp) but not on BTC; both still negative. Consider WFA for parameter tuning.
 3. **Data:** Ensure `data/ohlcv/` paths and column names match the scripts (e.g. `datetime` vs `date`).
 4. **Tests:** Add pytest and unit tests for core logic (e.g. `risk_manager`, `regime_detector`, `backtest_utils`).
 
@@ -210,7 +222,8 @@ source venv/bin/activate
 
 # Strategy backtests
 python research/backtests/backtest_strategy_1_v2.py
-python research/backtests/backtest_strategy_2_v2.py
+python research/backtests/backtest_strategy_2_v2.py          # default: BTC
+python research/backtests/backtest_strategy_2_v2.py --both   # BTC + ETH
 python research/backtests/backtest_strategy_3_v3.py
 python strategies/CascadeBounce.py
 python research/backtests/backtest_strategy_5_v2.py

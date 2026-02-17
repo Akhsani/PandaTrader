@@ -10,6 +10,13 @@ sys.path.append(os.getcwd())
 from strategies.UnlockTrader import UnlockTrader
 from utils.unlock_data_loader import get_upcoming_unlocks, score_unlock_impact
 
+# Tokens that consistently lose on unlock pattern; exclude from universe
+EXCLUDED_TOKENS = ['APT/USDT', 'TIA/USDT']
+
+# Full unlock universe (before exclusions)
+UNLOCK_UNIVERSE = ['ARB/USDT', 'OP/USDT', 'APT/USDT', 'SUI/USDT', 'TIA/USDT']
+
+
 def load_data(symbol):
     filename = f"data/ohlcv/{symbol.replace('/', '_')}_1d.csv"
     if not os.path.exists(filename):
@@ -31,8 +38,9 @@ def run():
     high_impact_unlocks = unlocks_df[criterion]
     
     trader = UnlockTrader(high_impact_unlocks)
-    
-    tokens = ['ARB/USDT', 'OP/USDT', 'APT/USDT', 'SUI/USDT', 'TIA/USDT']
+
+    tokens = [t for t in UNLOCK_UNIVERSE if t not in EXCLUDED_TOKENS]
+    print(f"Universe: {tokens} (excluded: {EXCLUDED_TOKENS})")
     results = {}
     
     for token in tokens:

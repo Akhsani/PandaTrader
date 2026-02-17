@@ -59,7 +59,9 @@ class WeekendMomentum(BaseStrategy):
         
         # Momentum & Volatility
         dataframe['adx'] = ta.ADX(dataframe)
-        dataframe['atr'] = ta.ATR(dataframe)
+        dataframe['atr'] = ta.ATR(dataframe, timeperiod=14)
+        # Volatility gate: only trade when ATR is below 75th percentile (avoid high-vol weekends)
+        dataframe['atr_p75'] = dataframe['atr'].rolling(200).quantile(0.75)
         
         # Day of week (0=Monday, ... 4=Friday, ... 6=Sunday)
         dataframe['day_of_week'] = dataframe['date'].dt.dayofweek
@@ -72,6 +74,7 @@ class WeekendMomentum(BaseStrategy):
         1. It is Friday
         2. Regime is NOT Bear (Master Switch)
         3. Long Term Trend is Bullish (EMA50 > EMA200)
+        4. Volatility gate: ATR below 75th percentile (avoid high-vol weekends)
         """
         dataframe.loc[
             (
@@ -87,6 +90,9 @@ class WeekendMomentum(BaseStrategy):
                 
                 # ADX Filter: Trend strength > 20 (avoid weak trends)
                 (dataframe['adx'] > 20) &
+                
+                # Volatility gate: only trade when ATR < 75th percentile (skip high-vol weekends)
+                ((dataframe['atr'] < dataframe['atr_p75']) | dataframe['atr_p75'].isna()) &
                 
                 # Volume check
                 (dataframe['volume'] > 0)

@@ -50,7 +50,7 @@ class UnlockTrader:
             long_end = unlock_date + timedelta(days=20) 
             
             # SHORT SIGNALS
-            if short_start in results.index or short_end in results.index:
+            if ((results.index >= short_start) & (results.index <= short_end)).any():
                 mask = (results.index >= short_start) & (results.index <= short_end)
                 if use_trend_filter:
                     # Filter out days where bull trend is active (Don't short bull)
