@@ -1,0 +1,10 @@
+ccxt
+pandas
+numpy
+python-telegram-bot
+jupyter
+hmmlearn
+scikit-learn
+matplotlib
+requests
+seaborn
