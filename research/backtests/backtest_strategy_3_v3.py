@@ -9,6 +9,7 @@ sys.path.append(os.getcwd())
 
 from strategies.UnlockTrader import UnlockTrader
 from utils.unlock_data_loader import get_upcoming_unlocks, score_unlock_impact
+from utils.data_loader import load_ohlcv
 
 # Tokens that consistently lose on unlock pattern; exclude from universe
 EXCLUDED_TOKENS = ['APT/USDT', 'TIA/USDT']
@@ -19,13 +20,11 @@ UNLOCK_UNIVERSE = ['ARB/USDT', 'OP/USDT', 'APT/USDT', 'SUI/USDT', 'TIA/USDT']
 
 def load_data(symbol):
     filename = f"data/ohlcv/{symbol.replace('/', '_')}_1d.csv"
-    if not os.path.exists(filename):
+    try:
+        return load_ohlcv(filename)
+    except FileNotFoundError:
         print(f"Data not found for {symbol}")
         return None
-    df = pd.read_csv(filename)
-    df['date'] = pd.to_datetime(df['date'])
-    df.set_index('date', inplace=True)
-    return df
 
 def run():
     print("Running Strategy 3 V3 Optimization (Funding Costs + Graduated Sizing)")

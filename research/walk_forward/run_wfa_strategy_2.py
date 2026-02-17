@@ -91,13 +91,29 @@ def strategy_logic(price_df, funding_df, z_score_threshold=2.0, adx_threshold=25
                     
     return pd.DataFrame(trades)
 
+def _find_funding_path(symbol):
+    """Try multiple funding file naming patterns (aligns with fetch_1h_data)."""
+    base = symbol.replace('/', '_')
+    for pattern in [
+        f"data/funding_rates/{base}_funding.csv",
+        f"data/funding_rates/{base}_USDT_funding.csv",
+        f"data/funding_rates/{base}_USDT_USDT_funding.csv",
+    ]:
+        if os.path.exists(pattern):
+            return pattern
+    return None
+
+
 def load_full_data(symbol):
-    # Helper to load full dataset
     ohlcv_path = f"data/ohlcv/{symbol.replace('/', '_')}_1h.csv"
-    funding_path = f"data/funding_rates/{symbol.replace('/', '_')}_USDT_funding.csv"
-    
+    funding_path = _find_funding_path(symbol)
+    if not funding_path:
+        raise FileNotFoundError(f"Funding data not found for {symbol}. Run: python utils/fetch_1h_data.py")
+
     price_df = pd.read_csv(ohlcv_path, parse_dates=['datetime'], index_col='datetime')
     funding_df = pd.read_csv(funding_path, parse_dates=['datetime'], index_col='datetime')
+    if 'fundingRate' not in funding_df.columns and 'funding_rate' in funding_df.columns:
+        funding_df = funding_df.rename(columns={'funding_rate': 'fundingRate'})
     return price_df, funding_df
 
 if __name__ == "__main__":

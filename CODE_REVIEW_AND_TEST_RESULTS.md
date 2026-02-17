@@ -73,7 +73,8 @@
 | BTC/USDT | -9.70% | -33.41% | -48.27% | -49.48% | No |
 | ETH/USDT | -4.62% | -14.98% | -58.54% | -50.87% | Yes (DD -7.67pp) |
 
-**Note:** Regime filter reduces drawdown on ETH but not BTC. Both assets still negative; WFA used different train/test windows.  
+**WFA (ETH):** `python research/walk_forward/run_wfa_strategy_2.py --symbol ETH/USDT` → **+44.64% return, 213 trades, 59.62% win rate.**  
+**Note:** Regime filter reduces drawdown on ETH. WFA validates Strategy 2 on ETH 1h.  
 **Status:** PASS (1h data path verified)
 
 ---
@@ -202,15 +203,18 @@
 7. `research/backtests/backtest_strategy_1_v2.py` – Add volatility gate, daily-return Sharpe.
 8. `research/backtests/backtest_strategy_2_v2.py` – Add `--symbol` and `--both` CLI for multi-asset.
 9. `research/backtests/backtest_strategy_3_v3.py` – Add `EXCLUDED_TOKENS` (APT, TIA), `UNLOCK_UNIVERSE`.
+10. `utils/data_loader.py` – New: `load_ohlcv`, `find_funding_path` for datetime/date flexibility.
+11. `research/walk_forward/run_wfa_strategy_2.py` – Add `_find_funding_path`, fundingRate column handling.
+12. `tests/` – New: pytest for risk_manager, regime_detector, backtest_utils, data_loader.
 
 ---
 
 ## 5. Recommendations
 
-1. **Freqtrade:** Uncomment `freqtrade` in `requirements.txt` if you plan to run Freqtrade strategies directly.
+1. **Freqtrade:** Uncomment `freqtrade` in `requirements.txt` when you need: (a) `freqtrade backtesting` / `freqtrade trade` (paper or live), (b) importing strategies from `strategies/` (they use `freqtrade.strategy`). It was commented to keep the research env lightweight—standalone backtests in `research/backtests/` don't require it.
 2. **Strategy 2:** Regime filter reduces drawdown on ETH (-7.67pp) but not on BTC; both still negative. Consider WFA for parameter tuning.
 3. **Data:** Ensure `data/ohlcv/` paths and column names match the scripts (e.g. `datetime` vs `date`).
-4. **Tests:** Add pytest and unit tests for core logic (e.g. `risk_manager`, `regime_detector`, `backtest_utils`).
+4. **Tests:** pytest added for `risk_manager`, `regime_detector`, `backtest_utils`, `data_loader`. Run: `python -m pytest tests/ -v`.
 
 ---
 
@@ -232,7 +236,29 @@ python research/backtests/backtest_strategy_5_v2.py
 python research/backtests/correlation_analysis.py
 python research/monte_carlo/run_monte_carlo.py
 python research/walk_forward/run_wfa_strategy_1.py --symbol BTC/USDT
+python research/walk_forward/run_wfa_strategy_2.py --symbol ETH/USDT
+
+# Tests
+python -m pytest tests/ -v
 
 # Utils
 python utils/risk_manager.py
 ```
+
+---
+
+## 7. Latest Full Run (Post-Recommendations)
+
+| Component | Status | Result |
+|-----------|--------|--------|
+| **pytest** | PASS | 16 tests passed |
+| **Strategy 1 backtest** | PASS | 110 trades, Sharpe 0.25 / 0.87 daily |
+| **Strategy 2 backtest** | PASS | BTC/ETH, regime helps ETH |
+| **Strategy 3 backtest** | PASS | ARB, OP, SUI (APT, TIA excluded) |
+| **CascadeBounce** | PASS | 7/8/5 trades |
+| **Strategy 5** | PASS | v2 grid 0.24% |
+| **Correlation** | PASS | Portfolio Sharpe 0.46 |
+| **WFA Strategy 1** | PASS | 20.84% return, 9 trades |
+| **WFA Strategy 2** | PASS | **44.64% return, 213 trades** (ETH) |
+| **Monte Carlo** | PASS | Median $1467, 16.2% ruin |
+| **Risk Manager** | PASS | Blocks after daily loss |
