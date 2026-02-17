@@ -646,12 +646,13 @@ def backtest_cascade_bounce(cascades, price_data):
 ### Validation Status (Feb 2026)
 > For full details, see **[EXP_004: Liquidation Cascade Bounce](research/experiments/EXP_004_LiquidationCascade.md)**
 
-- **Performance**: Failed to generate profit in 2024-2026 backtests.
+- **Performance**: Mixed. **ETH profitable (+3.8%, 87% WR)**, BTC/SOL flat.
 - **Issues**:
-    - **False Signals**: Funding flips often lag or don't occur on Binance Futures data during crashes.
-    - **Stop Loss**: The 2% trailing stop is too tight for the volatility.
-    - **Timing**: "First green candle" entry is often too early.
-- **Status**: **REJECTED / NEEDS REWORK**. Do not deploy without major changes (e.g., using Open Interest data).
+    - **Run 1 (Funding Flip)**: Failed due to signal lag.
+    - **Run 3 (RSI+ATR+Trend)**: Safe but very low frequency (only ~8 trades in 2 years).
+- **Status**: **HOLD / LOW PRIORITY**. 
+    - The "Trend Filter" makes it safe but prevents it from catching true "V-shape" crash bottoms in bear markets.
+    - Use as an auxiliary signal for ETH only.
 
 ---
 

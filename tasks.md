@@ -69,15 +69,16 @@ This document tracks the development progress of the Crypto Bot strategies based
     - [x] Implement `backtest_unlock_strategy` (Short 30d before, cover 14d after).
     - [x] Validate against historical events.
 
-### Strategy 4: Liquidation Cascade Bounce (Target: Week 2-3 - REJECTED)
+### Strategy 4: Liquidation Cascade Bounce (Target: Week 2-3 - HOLD / LOW PRIORITY)
 - [x] **Detection System**
     - [x] Implement `LiquidationMonitor` class in `strategies/CascadeBounce.py`.
     - [x] Implement cascade detection logic (Funding flip, Price dump).
 - [x] **Strategy Logic**
     - [x] Create `strategies/CascadeBounce.py`.
-    - [x] Implement entry (first green 1hr candle), stop (2% below low), target (50% retracement).
+    - [x] Implement v3 logic: RSI < 30, Volume spike, EMA200 Trend Filter.
 - [x] **Validation**
-    - [x] Backtest against available data (2024-2026). Result: Unprofitable / High Risk.
+    - [x] Backtest against available data (2024-2026).
+    - [x] Result: Profitable on ETH (+3.8%) but low frequency. Safe but low yield.
     - [x] Documentation: `EXP_004_LiquidationCascade.md`.
 
 ### Strategy 5: Regime-Adaptive Grid Bot (Target: Week 3)
