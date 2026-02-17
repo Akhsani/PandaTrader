@@ -60,7 +60,7 @@ if __name__ == "__main__":
     os.makedirs("data/funding_rates", exist_ok=True)
     
     symbols_spot = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT']
-    symbols_future = ['BTC/USDT', 'ETH/USDT', 'SOL/USDT'] # CCXT binance future symbols often like BTC/USDT:USDT or just BTC/USDT depends on defaultType
+    symbols_future = ['BTC/USDT:USDT', 'ETH/USDT:USDT', 'SOL/USDT:USDT']
     
     # 1. Fetch OHLCV (Spot prices are fine for signal, but often we trade perps. Let's use Spot for price data as proxy or Perps?)
     # Strategy says: "Go long spot ... short perp". 
@@ -80,6 +80,6 @@ if __name__ == "__main__":
         print(f"Fetching Funding Rate for {sym}...")
         df = fetch_funding(sym)
         if not df.empty:
-            filename = f"data/funding_rates/{sym.replace('/', '_')}_USDT_funding.csv" # Standardizing name
+            filename = f"data/funding_rates/{sym.replace('/', '_').replace(':', '_')}_funding.csv"
             df.to_csv(filename)
             print(f"Saved {len(df)} rows to {filename}")
