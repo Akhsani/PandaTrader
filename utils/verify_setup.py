@@ -1,5 +1,10 @@
 import sys
 import importlib
+try:
+    import dns_patch
+    dns_patch.apply_patch()
+except ImportError:
+    pass
 
 def check_import(module_name):
     try:
@@ -23,11 +28,13 @@ def main():
         "sklearn",
         "matplotlib",
         "requests",
-        "seaborn"
+        "seaborn",
+        "talib", # Critical one
+        "dns" # dnspython
     ]
 
     # Optional modules that might fail
-    optional_modules = ["talib", "pandas_ta", "freqtrade"]
+    optional_modules = ["pandas_ta"]
 
     all_good = True
     for mod in modules:
@@ -39,19 +46,26 @@ def main():
         check_import(mod)
 
     if all_good:
-        print("\n🎉 Core environment setup complete!")
+        print("\n🎉 Core environment setup complete! TA-Lib is working.")
     else:
         print("\n⚠️  Some core modules failed to load.")
 
-    # CCXT Test
+    # CCXT Test with DNS Patch
     try:
         import ccxt
-        print("\nTesting CCXT connection to Binance...")
+        print("\nTesting CCXT connection to Binance (using 1.1.1.1)...")
         exchange = ccxt.binance()
+        # Should trigger our DNS patch
         ticker = exchange.fetch_ticker('BTC/USDT')
         print(f"✅ Binance BTC/USDT: {ticker['last']}")
     except Exception as e:
         print(f"❌ CCXT Test Failed: {e}")
 
 if __name__ == "__main__":
+    # Ensure local imports work whether run from root or utils dir
+    import os
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+    
+    import dns_patch
+    dns_patch.apply_patch()
     main()
