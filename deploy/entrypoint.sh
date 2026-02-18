@@ -1,6 +1,15 @@
 #!/bin/bash
 # Inject Railway environment variables into Freqtrade config
-# This avoids putting secrets in config.json (which is in git)
+# Supports multi-strategy: STRATEGY env selects config (WeekendMomentum->s1, FundingReversion->s2, BasisHarvest->s6)
+
+STRATEGY="${STRATEGY:-WeekendMomentum}"
+case "$STRATEGY" in
+  WeekendMomentum) CONFIG_SRC="/freqtrade/user_data/config-s1.json" ;;
+  FundingReversion) CONFIG_SRC="/freqtrade/user_data/config-s2.json" ;;
+  BasisHarvest) CONFIG_SRC="/freqtrade/user_data/config-s6.json" ;;
+  *) CONFIG_SRC="/freqtrade/user_data/config.json" ;;
+esac
+[ -f "$CONFIG_SRC" ] && cp "$CONFIG_SRC" /freqtrade/user_data/config.json
 
 CONFIGS=("/freqtrade/user_data/config.json" "/freqtrade/user_data/config-funding.json")
 
@@ -31,5 +40,9 @@ for CONFIG in "${CONFIGS[@]}"; do
     fi
 done
 
-# Execute the original Freqtrade command
-exec freqtrade "$@"
+# Execute Freqtrade with STRATEGY from env (enables multi-service deployment)
+exec freqtrade trade \
+  --config /freqtrade/user_data/config.json \
+  --strategy "$STRATEGY" \
+  --strategy-path /freqtrade/user_data/strategies \
+  --dry-run-wallet 1000

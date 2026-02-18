@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import logging
 
-from strategies.base_strategy import BaseStrategy
+from base_strategy import BaseStrategy
 
 try:
     from utils.funding_utils import ENTRY_THRESHOLD

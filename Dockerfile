@@ -11,14 +11,13 @@ USER ftuser
 COPY utils/ /freqtrade/utils/
 COPY strategies/ /freqtrade/user_data/strategies/
 COPY deploy/config.json /freqtrade/user_data/config.json
+COPY deploy/config-s1.json /freqtrade/user_data/config-s1.json
+COPY deploy/config-s2.json /freqtrade/user_data/config-s2.json
+COPY deploy/config-s6.json /freqtrade/user_data/config-s6.json
 COPY deploy/config-funding.json /freqtrade/user_data/config-funding.json
 COPY deploy/entrypoint.sh /freqtrade/entrypoint.sh
 
 ENTRYPOINT ["/freqtrade/entrypoint.sh"]
-# Paper trading: FreqTrade supports single strategy per bot. Using WeekendMomentum (S1).
-# For S2+S6, add separate Railway services. Set API_SERVER_PASSWORD in Railway env.
-CMD ["trade", \
-     "--config", "/freqtrade/user_data/config.json", \
-     "--strategy", "WeekendMomentum", \
-     "--strategy-path", "/freqtrade/user_data/strategies", \
-     "--dry-run-wallet", "1000"]
+# STRATEGY env selects config: WeekendMomentum (S1) | FundingReversion (S2) | BasisHarvest (S6)
+# Default: WeekendMomentum. Set STRATEGY in Railway vars per service.
+CMD ["trade"]

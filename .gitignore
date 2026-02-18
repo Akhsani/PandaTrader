@@ -12,5 +12,8 @@ config.json
 *.sqlite
 user_data/logs/
 deploy/.env
-# Allow deploy/config.json (needed for Railway Docker build)
+# Allow deploy configs (needed for Railway Docker build)
 !deploy/config.json
+!deploy/config-s1.json
+!deploy/config-s2.json
+!deploy/config-s6.json
