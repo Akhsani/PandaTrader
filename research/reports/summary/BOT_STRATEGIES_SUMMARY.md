@@ -18,11 +18,12 @@
 
 | Strategy | WFA OOS Return | WFA Win Rate | MC Ruin Prob | MC Gate |
 |----------|----------------|--------------|--------------|---------|
-| S-A DCA (BTC) | 105.52% | 93.75% | 1.50% | PASS |
-| S-B Grid (ETH) | 991.5% (sum) | 58.95% | 0% | PASS |
-| S-D Signal (BTC) | -41.73% (OOS) | - | - | - |
+| S-A DCA (BTC) | 81.66% | 95.12% | 2.10% | PASS |
+| S-A DCA + regime-gate | 43.34% | 93.55% | 12.70% | FAIL |
+| S-B Grid (ETH) | 6.9% (sum), 0.4% ann. | 96.83% | 47.10% | FAIL |
+| S-D Signal (BTC) | -15.06% | 51.46% | 76.10% | FAIL |
 
-*DCA MC: 40% prob DD>20% (realistic with SL). Grid MC: additive returns. Slippage: add `slippage_bps` to params. 3Commas validation: see [docs/3COMMAS_VALIDATION.md](../../docs/3COMMAS_VALIDATION.md).
+*Run with --fast. DCA MC: 29.5% prob DD>20%. Grid MC: additive returns; ruin high with low WFA sum. 3Commas validation: see [docs/3COMMAS_VALIDATION.md](../../docs/3COMMAS_VALIDATION.md).
 
 ## WFA Options
 

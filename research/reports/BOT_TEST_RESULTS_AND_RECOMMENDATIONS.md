@@ -8,14 +8,14 @@
 
 ## 1. Unit Test Results
 
-All 21 unit tests **PASSED**.
+All 22 unit tests **PASSED**.
 
 | Test File | Tests | Status |
 |-----------|-------|--------|
 | `test_dca_bot.py` | 6 | PASS |
 | `test_grid_bot.py` | 5 | PASS |
 | `test_signal_bot.py` | 3 | PASS |
-| `test_base_bot.py` | 2 | PASS |
+| `test_base_bot.py` | 6 | PASS |
 | `test_monte_carlo.py` | 3 | PASS |
 | `test_walk_forward.py` | 2 | PASS |
 
@@ -23,6 +23,7 @@ All 21 unit tests **PASSED**.
 - DCA: SO levels, TP price, fee application, cooldown, single-deal lifecycle, export params
 - Grid: geometric/arithmetic grid, profit per cell, trailing up, stop bot
 - Signal: entry on signal, stop loss, trailing stop
+- Base: FeeEngine, compute_per_deal_ev, compute_annualized_capital_return
 - Monte Carlo: compound validator, grid additive validator (no inflation)
 - Walk-Forward: score_mode compound vs sum for grid
 
@@ -40,17 +41,18 @@ All 21 unit tests **PASSED**.
 
 ### Results Table
 
-| Strategy | Symbol | Sharpe | MDD | Win Rate | EV/Deal | Deals | Gate |
-|----------|--------|--------|-----|----------|---------|-------|------|
-| S-A RSI DCA | BTC | 0.26 | -1.9% | 95.1% | +1.64% | 82 | PASS |
-| S-A RSI DCA | ETH | -0.95 | -3.9% | 90.5% | TBD | 116 | TBD |
-| S-A RSI DCA | SOL | -1.20 | -4.6% | 90.0% | TBD | 130 | TBD |
-| S-B Grid ETH | ETH | -0.06 | -13.8% | 97.4% | - | 780 | TBD |
-| S-C BB+RSI | BTC | -0.16 | - | - | - | 126 | FAIL |
-| S-E Grid Reversal | BTC | -0.08 | - | - | - | 2146 | FAIL |
-| S-D Signal EMA | BTC | -0.38 | -0.5% | 52.4% | - | 288 | **FAIL** |
+| Strategy | Symbol | Sharpe | MDD | Win Rate | EV/Deal | Ann. Ret | Deals | Gate |
+|----------|--------|--------|-----|----------|---------|----------|-------|------|
+| S-A RSI DCA | BTC | 0.26 | -1.9% | 95.1% | +1.54% | - | 82 | PASS |
+| S-A RSI DCA | ETH | -0.95 | -3.9% | 90.5% | +0.74% | - | 116 | PASS |
+| S-A RSI DCA | SOL | -1.20 | -4.6% | 90.0% | +0.65% | - | 130 | PASS |
+| S-A RSI DCA (regime-gate) | BTC | 0.01 | -2.0% | 94.2% | +1.38% | - | 69 | PASS |
+| S-B Grid ETH | ETH | -0.06 | -13.8% | 97.4% | - | -1.1% | 780 | FAIL |
+| S-C BB+RSI | BTC | -0.21 | - | - | - | - | 113 | FAIL |
+| S-E Grid Reversal | BTC | -0.08 | - | - | - | - | 2146 | FAIL |
+| S-D Signal EMA | BTC | -0.38 | -0.5% | 52.4% | - | - | 288 | **FAIL** |
 
-*Re-run backtests to populate EV/Deal and annualized return. S-A BTC passes DCA gate (EV>0, WR>75%, MC ruin 1.5%<10%).*
+*S-A passes DCA gate (EV>0, WR>75%, MC ruin 2.1%<10%). S-B fails: cell profit 0.33%<0.6%, annualized -1.1%<12%.*
 
 **Realistic risk controls applied (Feb 2026):**
 - **DCA:** `stop_loss_percentage: 15%` — cuts loss if avg entry drops 15%. Win rates now 90–95% (was 100%).
@@ -65,19 +67,31 @@ All 21 unit tests **PASSED**.
 
 ## 3. Walk-Forward Analysis
 
-### S-A RSI DCA (BTC/USDT)
-- **Train:** 180d | **Test:** 30d (use `--train 180 --test 30`; run scripts default to 365d/90d)
-- **Total Return (OOS):** 105.52%
-- **Win Rate:** 93.75%
-- **Trades:** 64
-- **Best params:** TP 2.0–2.5%, stop_loss 12–18% (WFA optimizes SL in grid)
+### S-A RSI DCA (BTC/USDT) — 365d train, 90d test, --fast
+- **Total Return (OOS):** 81.66%
+- **EV per deal:** 0.0154
+- **Win Rate:** 95.12%
+- **Trades:** 41
+- **Best params:** TP 2.5%, stop_loss 15%
+
+### S-A RSI DCA with --regime-gate (BTC/USDT)
+- **Total Return (OOS):** 43.34%
+- **EV per deal:** 0.0127
+- **Win Rate:** 93.55%
+- **Trades:** 31
+- **Note:** Fewer trades; blocks entries in BEAR regime.
 
 ### S-B Grid (ETH/USDT)
-- **Train:** 180d | **Test:** 30d (use `--train 180 --test 30`)
-- **Total Return (sum of cell returns):** 991.5%
-- **Win Rate:** 58.95%
-- **Trades:** 3859
-- **Note:** Grid uses fixed capital per cell; stop_bot_price 10% below lower. Win rate reflects stop losses on crash events.
+- **Total Return (sum of cell returns):** 6.9%
+- **Annualized capital return:** 0.4% (on $1000, 20 lines)
+- **Win Rate:** 96.83%
+- **Trades:** 947
+- **Note:** Grid uses fixed capital per cell; sum of cell returns differs from annualized on full capital.
+
+### S-D Signal (BTC/USDT)
+- **Total Return (OOS):** -15.06%
+- **Win Rate:** 51.46%
+- **Trades:** 103
 
 ---
 
@@ -87,23 +101,47 @@ All 21 unit tests **PASSED**.
 | Metric | Value |
 |--------|-------|
 | Simulations | 1000 |
-| Median Final Equity | $2,065.27 |
-| Probability of Ruin | 1.50% |
-| Prob. Drawdown > 20% | 40.10% |
-| 95% VaR | $1,281.31 |
+| Median Final Equity | $1,816.58 |
+| Probability of Ruin | 2.10% |
+| Prob. Drawdown > 20% | 29.50% |
+| 95% VaR | $1,035.95 |
 
-**Gate:** PASS (ruin < 20%). Realistic: some losing trades from SL; MC reflects reshuffled trade order.
+**Gate:** PASS (ruin 2.1% < 10%). Uses WFA OOS trades (81.66% return, 41 trades).
 
 ### S-B Grid (ETH/USDT)
 | Metric | Value |
 |--------|-------|
 | Simulations | 1000 |
-| Median Final Equity | $1,496.35 |
-| Probability of Ruin | 0% |
+| Median Final Equity | $1,003.91 |
+| Probability of Ruin | 47.10% |
 | Prob. Drawdown > 20% | 0% |
-| 95% VaR | $1,449.80 |
+| 95% VaR | $935.11 |
 
-**Gate:** PASS (ruin < 20%). Uses `MonteCarloValidatorGrid` with additive returns. Run with `--investment 1000 --grid-lines 20`.
+**Gate:** FAIL (ruin 47.1% > 5%). Uses `MonteCarloValidatorGrid` with additive returns. WFA sum 6.9% over period.
+
+### S-D Signal (BTC/USDT)
+| Metric | Value |
+|--------|-------|
+| Simulations | 1000 |
+| Median Final Equity | $849.44 |
+| Probability of Ruin | 76.10% |
+| Prob. Drawdown > 20% | 83.70% |
+| 95% VaR | $541.57 |
+
+**Gate:** FAIL (ruin 76.1% > 20%). S-D RETIRED; use S2 Funding Reversion instead.
+
+---
+
+## 4.5 3Commas Fidelity Check (Manual)
+
+| Metric | PandaTrader | 3Commas | Delta |
+|--------|-------------|---------|-------|
+| Total Return | - | - | Run same pair/period on 3Commas backtester |
+| Win Rate | - | - | Compare within 20% |
+| Deals | - | - | |
+| Max Drawdown | - | - | |
+
+See [docs/3COMMAS_VALIDATION.md](../../docs/3COMMAS_VALIDATION.md) for steps.
 
 ---
 
@@ -151,11 +189,12 @@ All 21 unit tests **PASSED**.
 ## 7. Run Commands
 
 ```bash
-# Unit tests (21 tests total)
+# Unit tests (22 tests total)
 pytest tests/test_dca_bot.py tests/test_grid_bot.py tests/test_signal_bot.py tests/test_base_bot.py tests/test_monte_carlo.py tests/test_walk_forward.py -v
 
 # Backtests
 python research/bot_backtests/backtest_dca_rsi.py          # S-A RSI DCA
+python research/bot_backtests/backtest_dca_rsi.py --regime-gate  # S-A with regime gate
 python research/bot_backtests/backtest_dca_bb_rsi.py      # S-C BB+RSI
 python research/bot_backtests/backtest_grid_eth.py        # S-B Grid ETH
 python research/bot_backtests/backtest_grid_btc_reversal.py  # S-E Grid Reversal

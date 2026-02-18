@@ -222,4 +222,4 @@
 
 ---
 
-*Last updated: February 18, 2026*
+*Last updated: February 18, 2026. All tests run; results populated in BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md.*
