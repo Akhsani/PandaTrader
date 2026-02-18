@@ -16,7 +16,9 @@ Compare PandaTrader bot simulation results with 3Commas built-in backtester to v
    - Trigger: RSI-7 < 20
 2. **Run 3Commas backtester** for Feb 2024 – Feb 2026 (match PandaTrader period)
 3. **Compare:** Win rate (expect within ±5%), deal count (expect within ±20%), total return
-4. **Fill Section 4.5 table** in `research/reports/BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md` with PandaTrader vs 3Commas numbers
+4. **Fill Section 4.5 tables** in `research/reports/BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md` with 3Commas numbers (PandaTrader baseline already filled for S-A and S-C)
+
+**Expected PandaTrader reference (S-A backtest, full period):** Run `python research/bot_backtests/backtest_dca_rsi.py` to get your numbers. Latest (2024-02-18 to 2026-02-17): 230% total return, 82 deals, 95.1% win rate, -1.9% max drawdown. Use the same date range in 3Commas as your `data/ohlcv/BTC_USDT_1h.csv` covers.
 
 **Gate:** Within 20% on key metrics = simulation validated. If off by more, investigate fill logic or fee calculation before paper trading.
 
@@ -24,23 +26,22 @@ Compare PandaTrader bot simulation results with 3Commas built-in backtester to v
 
 ### 1. Export Parameters from PandaTrader
 
+For **full-period backtest** (same period as 3Commas):
+
 ```bash
-# Run backtest or WFA to get optimized_params
 python research/bot_backtests/backtest_dca_rsi.py
-# or
-python research/walk_forward/run_wfa_dca.py --strategy sa --symbol BTC/USDT
 ```
 
-Use `optimized_params` from the result (or from `research/results/backtests/{dca|grid|signal}/*.json`).
+Use `optimized_params` from the result (or from `research/results/backtests/dca/sa_BTC_USDT_*.json`). The backtest uses the same period as your data file; use that same date range in 3Commas.
 
 ### 2. Configure 3Commas Backtester
 
 1. Log into 3Commas
 2. Create a new bot (paper mode)
 3. Paste the same parameters:
-   - Pair: e.g. BTC/USDT
-   - Period: match PandaTrader (e.g. 2024-02-18 to 2026-02-17)
-   - All DCA/Grid/Signal params from `optimized_params`
+   - Pair: BTC/USDT
+   - Period: match PandaTrader (e.g. 2024-02-18 to 2026-02-17; use same range as your `data/ohlcv/BTC_USDT_1h.csv`)
+   - TP 2.5%, SL 15%, BO $25, SO $30, 4 SOs, RSI-7 < 20 trigger
 
 ### 3. Run 3Commas Backtest
 
@@ -49,12 +50,23 @@ Use `optimized_params` from the result (or from `research/results/backtests/{dca
 
 ### 4. Compare
 
+**S-A RSI DCA:**
+
 | Metric | PandaTrader | 3Commas | Delta |
 |--------|-------------|---------|-------|
-| Total Return | X% | Y% | |
-| Win Rate | X% | Y% | |
-| Deals | N | M | |
-| Max Drawdown | X% | Y% | |
+| Total Return | 230.0% | - | Fill after 3Commas run |
+| Win Rate | 95.1% | - | Compare within ±5% |
+| Deals | 82 | - | Compare within ±20% |
+| Max Drawdown | -1.9% | - | |
+
+**S-C BB+RSI** (optional; trigger: Close <= BB lower AND RSI < 30):
+
+| Metric | PandaTrader | 3Commas | Delta |
+|--------|-------------|---------|-------|
+| Total Return | 292.2% | - | Fill after 3Commas run |
+| Win Rate | 93.8% | - | Compare within ±5% |
+| Deals | 113 | - | Compare within ±20% |
+| Max Drawdown | -2.4% | - | |
 
 **Gate:** Within 20% for return and win rate. If outside, investigate:
 - Fee assumptions (Binance 0.1% default)
@@ -63,7 +75,15 @@ Use `optimized_params` from the result (or from `research/results/backtests/{dca
 
 ### 5. Document
 
-Add comparison to `research/reports/BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md` under a "3Commas Fidelity" section.
+Add comparison to `research/reports/BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md` Section 4.5 (3Commas Fidelity Check table). PandaTrader baseline already filled; add 3Commas column and Delta.
+
+## S-C BB+RSI Fidelity Check
+
+Same process as S-A; use a separate 3Commas bot with BB+RSI trigger:
+
+- **Params:** TP 2.5%, SL 15%, BO $25, SO $30, 4 SOs
+- **Trigger:** Close <= BB lower band AND RSI < 30 (RSI-7, BB-20)
+- **PandaTrader reference:** Run `python research/bot_backtests/backtest_dca_bb_rsi.py` — latest (2024-02-18 to 2026-02-17): 292.2% return, 113 deals, 93.8% WR, -2.4% MDD
 
 ## Known Differences
 

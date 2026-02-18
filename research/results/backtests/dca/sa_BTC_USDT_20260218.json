@@ -20,11 +20,11 @@
     "slippage_bps": 0.0
   },
   "metrics": {
-    "sharpe_ratio": 0.014408571186440138,
-    "max_drawdown": -1.9682260206751048,
-    "win_rate": 0.9420289855072463,
-    "total_deals": 69,
-    "expected_value_per_deal": 0.01384021739130425,
+    "sharpe_ratio": 0.2597774673862012,
+    "max_drawdown": -1.892386606451742,
+    "win_rate": 0.9512195121951219,
+    "total_deals": 82,
+    "expected_value_per_deal": 0.015446951219512096,
     "gate_passed": true
   },
   "gate_passed": true

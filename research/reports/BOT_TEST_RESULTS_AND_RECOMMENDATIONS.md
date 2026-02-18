@@ -165,14 +165,29 @@ All 25 unit tests **PASSED**.
 
 ## 4.5 3Commas Fidelity Check (Manual)
 
-**Required before paper trading.** Run S-A RSI DCA on 3Commas backtester (TP 2.5%, SL 15%, BO $25, SO $30, 4 SOs, RSI-7 < 20) for Feb 2024 – Feb 2026, then fill:
+**Required before paper trading.** Run each strategy on 3Commas backtester for Feb 2024 – Feb 2026, then fill 3Commas column and Delta.
+
+### S-A RSI DCA (BTC/USDT)
+
+Params: TP 2.5%, SL 15%, BO $25, SO $30, 4 SOs, RSI-7 < 20 trigger.
 
 | Metric | PandaTrader | 3Commas | Delta |
 |--------|-------------|---------|-------|
-| Total Return | - | - | Run same pair/period on 3Commas backtester |
-| Win Rate | - | - | Compare within ±5% |
-| Deals | - | - | Compare within ±20% |
-| Max Drawdown | - | - | |
+| Total Return | 230.0% | - | Run same pair/period on 3Commas backtester |
+| Win Rate | 95.1% | - | Compare within ±5% |
+| Deals | 82 | - | Compare within ±20% |
+| Max Drawdown | -1.9% | - | |
+
+### S-C BB+RSI (BTC/USDT)
+
+Params: TP 2.5%, SL 15%, BO $25, SO $30, 4 SOs. Trigger: Close <= BB lower AND RSI < 30 (RSI-7, BB-20).
+
+| Metric | PandaTrader | 3Commas | Delta |
+|--------|-------------|---------|-------|
+| Total Return | 292.2% | - | Run same pair/period on 3Commas backtester |
+| Win Rate | 93.8% | - | Compare within ±5% |
+| Deals | 113 | - | Compare within ±20% |
+| Max Drawdown | -2.4% | - | |
 
 See [docs/3COMMAS_VALIDATION.md](../../docs/3COMMAS_VALIDATION.md) for S-A quick checklist and full steps.
 
