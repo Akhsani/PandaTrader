@@ -1,6 +1,8 @@
 # PandaTrader — Task List
 > Updated: February 18, 2026 · Phase: Pre-Paper Trading · Hosting: Railway.app
 
+**Current status:** Multi-strategy deployment. 3 services: PandaTrader (S1), PandaTrader-S2, PandaTrader-S6. Each runs one strategy. **Copy env vars** (EXCHANGE_API_KEY, TELEGRAM_BOT_TOKEN, etc.) to S2 and S6 in Railway dashboard.
+
 ---
 
 ## Status Legend
@@ -16,22 +18,33 @@
 
 ### Railway Infrastructure Setup
 
-- [ ] **Create Railway project**
-  - New project → "PandaTrader"
-  - Add service → deploy from GitHub repo (or Docker image)
+- [x] **Create Railway project**
+  - Project "cozy-harmony" with 3 services: PandaTrader (S1), PandaTrader-S2, PandaTrader-S6
+  - Each service: same repo, `STRATEGY` env selects config (WeekendMomentum | FundingReversion | BasisHarvest)
 
 - [ ] **Add persistent Volume**
   - Mount path: `/freqtrade/user_data`
   - Hobby plan: up to 5 GB (more than enough)
   - This preserves `tradesv3.sqlite` across redeploys — **do not skip**
 
-- [ ] **Set environment variables in Railway dashboard**
-  - `EXCHANGE_API_KEY`
-  - `EXCHANGE_API_SECRET`
-  - `TELEGRAM_BOT_TOKEN`
-  - `TELEGRAM_CHAT_ID`
-  - `FREQTRADE_ENV=dry_run`
-  - Never hardcode secrets in config files
+- [x] **Set environment variables in Railway dashboard**
+  - `EXCHANGE_API_KEY`, `EXCHANGE_API_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `API_SERVER_PASSWORD`, `FREQTRADE_ENV` — all set
+  - **⚠️ Telegram fix:** If you see "bots can't send messages to bots" — your `TELEGRAM_CHAT_ID` is wrong. Use your **personal** chat ID (from `getUpdates` after messaging your bot), NOT the bot's ID. The bot token format is `bot_id:secret` — do not use `bot_id` as chat_id.
+
+  **How to get Telegram Chat ID**
+  1. Create a bot via [@BotFather](https://t.me/BotFather): send `/newbot`, follow prompts, copy the token → `TELEGRAM_BOT_TOKEN`
+  2. Start a chat with your bot (click its link, send any message like `/start`)
+  3. Get your chat ID:
+     - **Option A:** Visit `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates` in a browser (replace `<YOUR_BOT_TOKEN>`). After you messaged the bot, the JSON response will show `"chat":{"id":123456789}` — that number is your `TELEGRAM_CHAT_ID`
+     - **Option B:** Use [@userinfobot](https://t.me/userinfobot) — forward a message from your bot to it, or message it directly; it replies with your ID
+  4. For a **group chat:** Add the bot to the group, send a message, then use `getUpdates` — the group ID will be negative (e.g. `-1001234567890`)
+
+  **API_SERVER_PASSWORD**
+  - **What it is:** The password for FreqUI (FreqTrade’s web dashboard). Used to log in at `https://your-app.up.railway.app`
+  - **How to get it:** You choose it. Create a strong password (e.g. 16+ chars, mixed case, numbers, symbols)
+  - **Where to set:** Railway → Service → Variables → add `API_SERVER_PASSWORD` = your chosen password
+  - **Username:** Fixed as `pandatrader` in config (or change in `deploy/config.json`)
+  - **Note:** If unset, the config uses `STRONG_PASSWORD_HERE` — change this before going live
 
 - [x] **Create `Dockerfile` (if not already)**
   - Exists; copies strategies, config; CMD runs S1+S2+S6
@@ -54,13 +67,12 @@
 - [x] **Set db_url to mounted volume path**
   - Added to `deploy/config.json`
 
-- [ ] **Expose port 8080 in Railway service settings**
-  - Railway → Service → Settings → Networking → add port 8080
-  - Generate Railway domain
+- [x] **Expose port 8080 in Railway service settings**
+  - Domain: `https://pandatrader-production.up.railway.app`
 
-- [ ] **Verify FreqUI loads at Railway domain after first deploy**
-  - Login with credentials set above
-  - Confirm dry-run trades are visible
+- [x] **Verify FreqUI loads at Railway domain after first deploy**
+  - Bot RUNNING; API server on 8080; WeekendMomentum strategy active
+  - Login: username `pandatrader`, password = your `API_SERVER_PASSWORD`
 
 ### Strategy Pre-Flight
 
@@ -81,6 +93,13 @@
   - Strategies: WeekendMomentum, FundingReversion, BasisHarvest (S1+S2+S6)
   - `"dry_run": true`, `"dry_run_wallet": 1000`
   - api_server enabled, db_url set, pair_whitelist BTC+ETH
+
+- [x] **Multi-strategy Railway setup**
+  - S1 (PandaTrader): `STRATEGY=WeekendMomentum` (default), spot, BTC+ETH, $600 wallet
+  - S2 (PandaTrader-S2): `STRATEGY=FundingReversion`, futures ETH, $600 wallet
+  - S6 (PandaTrader-S6): `STRATEGY=BasisHarvest`, futures BTC, $300 wallet
+  - **Action required:** Copy env vars from PandaTrader to S2 and S6: EXCHANGE_API_KEY, EXCHANGE_API_SECRET, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, API_SERVER_PASSWORD
+  - Generate domains for S2/S6 in Railway → Service → Settings → Networking
 
 - [ ] **Wire Telegram daily report to live FreqTrade state**
   - Pull P&L from FreqTrade REST API (not mocked data): `GET /api/v1/profit`
@@ -176,6 +195,18 @@
 
 ---
 
+## 🤖 3Commas Bot Simulators (Local)
+
+| Strategy | Bot Type | Status | Gate |
+|----------|----------|--------|------|
+| S-A RSI DCA | DCA | Validated | PASS |
+| S-B Grid ETH | Grid | Validated | PASS |
+| S-D EMA Signal | Signal | Gate Failed | FAIL |
+
+**Docs:** [BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md](research/reports/BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md) | [BOT_WORKFLOW.md](docs/BOT_WORKFLOW.md)
+
+---
+
 ## 📊 Current Strategy Status
 
 | Strategy | Asset | Status | Paper Deploy? |
@@ -192,10 +223,15 @@
 
 ## 🖥️ Monitoring Stack (Railway)
 
-| Layer | Tool | Access |
-|-------|------|--------|
-| Live trades & charts | **FreqUI** | `https://pandatrader.up.railway.app` |
-| Push alerts | **Telegram bot** | Trade open/close, daily summary, errors |
-| CPU / RAM / logs | **Railway dashboard** | Built-in, no setup needed |
+| Service | Strategy | FreqUI |
+|---------|----------|--------|
+| PandaTrader | S1 WeekendMomentum | `https://pandatrader-production.up.railway.app` |
+| PandaTrader-S2 | S2 FundingReversion | `https://pandatrader-s2-production.up.railway.app` |
+| PandaTrader-S6 | S6 BasisHarvest | `https://pandatrader-s6-production.up.railway.app` |
+
+| Layer | Tool |
+|-------|------|
+| Push alerts | **Telegram bot** — all 3 services share same bot/chat |
+| CPU / RAM / logs | **Railway dashboard** |
 
 > Grafana / Freqdash not needed until live capital + 3 months of data worth visualizing.

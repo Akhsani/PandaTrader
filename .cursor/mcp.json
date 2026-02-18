@@ -3,6 +3,10 @@
       "nansen": {
         "url": "https://mcp.nansen.ai/ra/mcp/",
         "headers": "NANSEN-API-KEY:ah0yIKFJkte1U7p8xdetsfqmpcoLJbtH"
-      }
+      },
+      "Railway": {
+      "command": "npx",
+      "args": ["-y", "@railway/mcp-server"]
+    }
     }
   }
