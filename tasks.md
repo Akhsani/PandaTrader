@@ -1,6 +1,15 @@
 # Crypto Bot Project Task List
 
-This document tracks the development progress of the Crypto Bot strategies based on the `crypto-bot-playbook.md`.
+This document tracks the development progress of the Crypto Bot strategies based on the `crypto-bot-playbook.md` and the **Deep Strategy Review** (`crypto-bot-strategy-2.docx`).
+
+## Strategy Proposal Summary (Feb 2026)
+
+The `crypto-bot-strategy-2.docx` review identifies:
+- **Portfolio Sharpe 0.46** — target >1.0 for live deployment justification
+- **S2 drawdown risk** — 86% probability of >20% drawdown (Monte Carlo)
+- **Structural gaps** — No regime master switch; S1 sample size (N=9 WFA) too small
+- **New strategies** — S6 (Basis Harvesting), S9 (Cross-Asset Funding Arb) as highest-priority builds
+- **Edge taxonomy** — Structural/Calendar edges (S6, S9) decay slower than Statistical/Behavioral (S2, S1)
 
 ## Status Legend
 - [ ] Todo
@@ -97,6 +106,103 @@ This document tracks the development progress of the Crypto Bot strategies based
     - [ ] Implement `CrossL2Scanner` to check Uniswap V3 quotes.
     - [ ] Implement spread calculation (including bridge/gas costs).
 
+---
+
+## Phase 2B: Strategy Proposal Improvements (crypto-bot-strategy-2.docx)
+
+*Critical fixes and enhancements from the Feb 2026 Deep Strategy Review.*
+
+### Phase 2B.1: Regime Master Switch (This Week)
+- [x] **Regime-Based Portfolio Master Switch**
+    - [x] Implement regime-based strategy gating in `utils/risk_manager.py`:
+        - **BULL**: S1 active, S2 long-only, S3 shorts disabled, S5 grid inactive
+        - **SIDEWAYS**: S1 waits for Friday, S2 both sides, S5 grid active, S3 active
+        - **BEAR**: S1 disabled, S2 short-only, S3 short-only, S5 grid cash-preservation
+        - **TRANSITION**: Reduce all position sizes by 50%
+    - [x] Integrate master switch with `BaseStrategy` and strategy-specific `confirm_trade_entry`.
+- [ ] **HMM Regime Detector Enhancements**
+    - [x] StandardScaler on HMM features (already in `regime_detector.py`)
+    - [x] close/SMA200 ratio as trend_pos feature (already implemented)
+    - [ ] Run correlation matrix on **daily** strategy returns (not just trade correlation).
+
+### Phase 2B.2: Strategy 1 (Weekend Momentum) — Sample Size & Validation
+- [x] **Stop Loss** — Tightened to 3% (already in `WeekendMomentum.py`)
+- [x] **Volatility Gate** — ATR < 75th percentile (already implemented)
+- [x] **WFA Expansion**
+    - [x] Run WFA on ETH and SOL (in addition to BTC).
+    - [x] Pool OOS trades across BTC + ETH + SOL for statistical significance.
+    - [x] `--pool` flag outputs `wfa_strat1_pooled_fri-mon.csv`. Pooled: 20 trades (BTC 9, ETH 11).
+- [x] **Monday–Wednesday Variant** — `--variant mon-wed` for "Monday close → Wednesday close".
+
+### Phase 2B.3: Strategy 2 (Funding Reversion) — Drawdown Mitigation
+- [x] **Dynamic Position Sizing**
+    - [x] Z=1.5 → 0.5% risk; Z=2.0 → 1.0%; Z=2.5+ → 1.5%.
+    - [x] Integrate conviction-weighted sizing in `FundingReversion.py` / `custom_stake_amount`.
+- [x] **Drawdown Throttle**
+    - [x] If portfolio drawdown > 10% → halve next position size.
+    - [x] If portfolio drawdown > 15% → go to zero until recovers.
+- [x] **Asset Focus** — Prefer ETH/SOL over BTC (deployment config).
+
+### Phase 2B.4: Strategy 3 (Token Unlocks) — Narrative Scoring
+- [x] **Narrative Momentum Filter**
+    - [x] Do not short if 30-day momentum > +50%.
+    - [x] Do not short if ADX > 40 on daily (strong directional trend).
+- [-] **Market-Neutral Leg** — Deferred to paper-trading phase (multi-asset execution).
+
+### Phase 2B.5: Strategy 4 (Cascade Bounce) — Repurpose as Filter
+- [x] **Cascade as S2 Signal Amplifier**
+    - [x] Created `utils/cascade_detector.py` with RSI < 30 + vol spike detection.
+    - [x] When cascade fires, double conviction weight in `FundingReversion` `custom_stake_amount`.
+- [x] CascadeBounce standalone retained; cascade used as S2 amplifier.
+
+### Phase 2B.6: Strategy 5 (Regime Grid) — Master Switch Integration
+- [x] RegimeGrid now inherits from BaseStrategy (regime from 2B.1).
+- [x] S5 grid inactive in BULL, active in SIDEWAYS, cash-preservation (50% size) in BEAR.
+
+---
+
+## Phase 2C: New Strategies (Strategy Proposal)
+
+### Strategy 6 (NEW): Spot-Perp Basis Harvesting (Delta-Neutral Funding Carry)
+*Target: Weeks 2–3 | Edge: Structural (very slow decay)*
+
+- [x] **Data Collection**
+    - [x] Extended `utils/fetch_1h_data.py` with `fetch_perp_ohlcv`, `fetch_spot_perp_basis_data`.
+    - [x] Fetch spot and perp prices; compute basis.
+- [x] **Backtest**
+    - [x] Created `research/backtests/backtest_strategy_6.py`: long spot, short perp, collect 8-hour funding.
+    - [x] Basis inversion exit: 3 consecutive negative funding periods.
+    - [x] Result: ~10.8% avg return, ~5.2% APY, <0.1% max DD (BTC, ETH, SOL).
+- [x] **Implementation**
+    - [x] Created `strategies/BasisHarvest.py`.
+    - [x] Regime guard: only in BEAR or SIDEWAYS (never BULL).
+
+### Strategy 9 (NEW): Cross-Asset Funding Rotation
+*Target: Weeks 4–6 | Edge: Structural (very slow decay)*
+
+- [x] **Data Collection**
+    - [x] `fetch_funding_multi()` in `utils/fetch_1h_data.py` for 10 assets.
+- [x] **Rotation Engine**
+    - [x] Z-score ranking (rolling 30-day window per asset).
+    - [x] Enter highest Z every 8h; exit when Z < 0.5.
+- [x] **Backtest**
+    - [x] Created `research/backtests/backtest_strategy_9.py`.
+    - [x] Result: 0.76% return, 0.40% APY (BTC, ETH, SOL; 3-asset rotation).
+
+### Strategy 7 (FUTURE): IV Premium Harvesting (Options)
+*Medium-term research — requires Deribit/options infra.*
+
+### Strategy 8 (FUTURE): On-Chain Whale Accumulation Tracker
+*Requires Glassnode/Nansen API integration.*
+
+### Strategy 10 (FUTURE): Pre-Halving Accumulation Pattern
+*Regime overlay for S1 when halving window active (Apr 2028).*
+
+### Strategy 11 (FUTURE): Narrative Momentum + Technical Composite
+*Long-term — GitHub, OBI, social signals.*
+
+---
+
 ## Phase 3: Validation Pipeline
 - [x] **Phase 1: Historical Backtest**
     - [x] Run Freqtrade backtest for substantially improved Strategy 2. (ETH +31%)
@@ -127,10 +233,20 @@ This document tracks the development progress of the Crypto Bot strategies based
     - [ ] Configure `config/config.json` for dry-run.
     - [ ] Run top performing strategy for 4-8 weeks.
     - [ ] Compare Paper results vs Backtest.
+- [ ] **Paper Trading Portfolio (Strategy Proposal)**
+    - [ ] Deploy S1 + S6 as core: directional (S1) + neutral (S6).
+    - [ ] S6 provides baseline yield; S1 provides bull-market upside.
+    - [ ] Add S9 (rotation) once S6 validated in paper trading.
+    - [ ] Minimum 90 days paper trading before any real capital.
 - [ ] **Live Micro-Deployment**
     - [ ] Configure `config/config.json` for live trading (Binance API).
     - [ ] Set conservative limits ($50/trade, max 3 trades).
     - [ ] Enable circuit breakers.
+- [ ] **Pre-Live Gate**
+    - [ ] S1: 50+ pooled OOS trades with Sharpe > 1.0 before live.
+    - [ ] Portfolio Sharpe > 1.0 to justify operational risk.
 
 ## Development Log & Notes
 - **[Date]**: Initial task list created.
+- **[Feb 18, 2026]**: Integrated `crypto-bot-strategy-2.docx` Deep Strategy Review. Added Phase 2B (critical fixes), Phase 2C (new strategies S6, S9). Regime master switch, S2 drawdown throttle, S3 narrative scoring, S4 cascade-as-filter, S1 WFA expansion. Paper trading portfolio spec: S1 + S6 core, S9 after validation.
+- **[Feb 18, 2026]**: Phase 2B & 2C implementation complete. Regime Master Switch in risk_manager; S1 WFA --pool and --variant mon-wed; S2 dynamic Z-based sizing and drawdown throttle; S3 narrative filter; S4 cascade detector + S2 amplifier; S5 RegimeGrid inherits BaseStrategy; S6 BasisHarvest backtest + strategy; S9 Cross-Asset Funding Rotation. 30 unit tests passing.

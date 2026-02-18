@@ -45,7 +45,23 @@ The strategy is highly robust with a high win rate (77%) and low risk. The main 
 - **Edge**: Strong edge confirmed.
 - **Sample Size Warning**: Only 9 trades in the WFA test period makes statistical significance lower than Strategy 2.
 
-## 5. Next Steps
+## 5. Phase 2B WFA Expansion (Feb 2026)
+
+### Pooled WFA (BTC + ETH + SOL)
+- **Total Return**: 18.24%
+- **Win Rate**: 55.00%
+- **Trades**: 20 (BTC: 9, ETH: 11)
+- **Monte Carlo (pooled)**: Median $1,191, Ruin 19.6%, Prob DD>20% 16.2%
+
+### Mon–Wed Variant (ETH)
+- **Total Return**: 31.10%
+- **Win Rate**: 70.00%
+- **Trades**: 30
+- **Note**: Higher frequency than Fri–Mon; alternative for more opportunities.
+
+See `EXP_Phase2B_Improvements.md` for full test report.
+
+## 6. Next Steps
 1.  **Deployment**: Valid for live trading on BTC, ETH, SOL.
 2.  **Portfolio Role**: Excellent "satellite" strategy to run alongside higher frequency strategies.
 3.  **Monitoring**: Ensure Friday entries are only taken if the Trend Filter is active.

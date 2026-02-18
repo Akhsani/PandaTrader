@@ -26,8 +26,25 @@
 2. **Sizing Failure**: The 1.5x sizing multiplier for Longs in Bull trends did not provide enough outperformance to overcome the funding drag. This suggests that the "Relief Bounce" move might be too short-lived or the Bull trend filter on 1D data is not agile enough for these specific events.
 3. **Altcoins Performance**: ARB, OP, and SUI remained profitable, while APT and TIA struggled.
 
+## Phase 2B Narrative Scoring (Feb 2026)
+
+### Implementation
+- Do not short if 30-day momentum > +50%
+- Do not short if ADX > 40 on daily (strong directional trend)
+
+### Backtest with Narrative Filter (ARB, OP, SUI; APT, TIA excluded)
+| Token | Baseline Return | Optimized Return | Max DD (Opt) |
+|-------|-----------------|------------------|--------------|
+| ARB/USDT | 15.76% | 14.73% | -18.01% |
+| OP/USDT | 64.44% | 62.64% | -17.87% |
+| SUI/USDT | 33.68% | 32.49% | -27.95% |
+
+**Note:** Narrative filter reduces shorts in strong momentum; optimization did not improve returns. Fixed sizing recommended.
+
+See `EXP_Phase2B_Improvements.md` for full test report.
+
 ## Conclusion
 **STATUS: CAUTION / FIXED SIZING RECOMMENDED**
 - **Action**: Do NOT implement 1.5x sizing for Strategy 3 for now. Keep sizing fixed at 1.0x.
 - **Action**: Always assume a funding cost "buffer" when evaluating unlock short setups.
-- **Logic Update**: `strategies/UnlockTrader.py` will revert to fixed sizing to prioritize safety.
+- **Phase 2B**: Narrative filter added to avoid shorting during strong momentum/trend.

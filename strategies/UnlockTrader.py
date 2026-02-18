@@ -18,7 +18,7 @@ class UnlockTrader:
         results['signal'] = 0
         results['size_multiplier'] = 1.0
         
-        # Calculate Indicators for Filter
+        # Calculate Indicators for Filter (Phase 2B.4: Narrative Momentum)
         if use_trend_filter:
             close = price_data['close'].values
             high = price_data['high'].values
@@ -33,8 +33,17 @@ class UnlockTrader:
             # Bull Trend Condition: High ADX (>25) AND Price > SMA200
             is_bull_trend = (adx > 25) & (close > sma200)
             is_bull_trend = pd.Series(is_bull_trend, index=price_data.index).fillna(False)
+            
+            # Narrative Momentum Filter (Phase 2B.4): Do not short if 30d momentum > 50% or ADX > 40
+            close_series = price_data['close']
+            momentum_30d = (close_series - close_series.shift(30)) / close_series.shift(30)
+            momentum_30d = momentum_30d.fillna(0)
+            strong_momentum = momentum_30d > 0.50
+            strong_adx = pd.Series(adx > 40, index=price_data.index).fillna(False)
+            narrative_filter = strong_momentum | strong_adx  # Don't short when either
         else:
             is_bull_trend = pd.Series(False, index=price_data.index)
+            narrative_filter = pd.Series(False, index=price_data.index)
         
         token_unlocks = self.unlocks[self.unlocks['symbol'] == token_symbol]
         
@@ -53,9 +62,10 @@ class UnlockTrader:
             if ((results.index >= short_start) & (results.index <= short_end)).any():
                 mask = (results.index >= short_start) & (results.index <= short_end)
                 if use_trend_filter:
-                    # Filter out days where bull trend is active (Don't short bull)
+                    # Filter out: bull trend, narrative momentum > 50%, ADX > 40 (Phase 2B.4)
                     trend_mask = is_bull_trend.reindex(results.index).fillna(False)
-                    final_mask = mask & (~trend_mask)
+                    narr_mask = narrative_filter.reindex(results.index).fillna(False)
+                    final_mask = mask & (~trend_mask) & (~narr_mask)
                     results.loc[final_mask, 'signal'] = -1
                 else:
                     results.loc[mask, 'signal'] = -1

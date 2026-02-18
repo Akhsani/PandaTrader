@@ -31,6 +31,23 @@ A Grid Bot performs best in sideways markets but suffers heavy drawdowns in tren
     - Failed to generate *absolute* positive returns in a bear market (requires a Short strategy for Bear regime).
     - HMM convergence warning suggests data quantity (365 days) might be insufficient for robust training.
 
+## Phase 2B Master Switch Integration (Feb 2026)
+
+### Implementation
+- `RegimeGrid` now inherits from `BaseStrategy` (uses portfolio-level regime from 2B.1)
+- S5 grid: **inactive** in BULL, **active** in SIDEWAYS, **50% size** (cash-preservation) in BEAR
+
+### Backtest (S5 v2, Feb 2026)
+| Mode | Return | Trades |
+|------|--------|--------|
+| Buy & Hold | -33.09% | 1 |
+| v1 Static Grid | -0.60% | 51 |
+| v2 Dynamic Grid | -0.67% | 31 |
+
+**Status:** RegimeGrid integrated with master switch. Grid reduces drawdown vs Buy & Hold.
+
+See `EXP_Phase2B_Improvements.md` for full test report.
+
 ## Conclusion
 - **Status**: **Promising / Defensive**.
 - **Recommendation**:

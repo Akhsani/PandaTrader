@@ -255,17 +255,46 @@ python research/walk_forward/reoptimize_strategy_2.py --symbol ETH/USDT -o resea
 # Tests
 python -m pytest tests/ -v
 
+# Phase 2B/2C
+python research/walk_forward/run_wfa_strategy_1.py --pool
+python research/walk_forward/run_wfa_strategy_1.py --variant mon-wed --symbol ETH/USDT
+python research/backtests/backtest_strategy_6.py
+python research/backtests/backtest_strategy_9.py
+
 # Utils
 python utils/risk_manager.py
 ```
 
 ---
 
-## 7. Latest Full Run (Post-Recommendations)
+## 7. Phase 2B/2C Additions (Feb 18, 2026)
 
 | Component | Status | Result |
 |-----------|--------|--------|
-| **pytest** | PASS | 16 tests passed |
+| **Regime Master Switch** | PASS | risk_manager.is_strategy_allowed, set_regime, position_size_multiplier |
+| **S1 WFA --pool** | PASS | 20 pooled trades (BTC 9, ETH 11), 18.24% return |
+| **S1 WFA --variant mon-wed** | PASS | ETH: 30 trades, 31.10% return, 70% win rate |
+| **S2 Dynamic Sizing** | PASS | Z-based risk, drawdown throttle |
+| **S3 Narrative Filter** | PASS | 30d momentum > 50%, ADX > 40 |
+| **Cascade Detector** | PASS | utils/cascade_detector.py, S2 amplifier |
+| **S5 RegimeGrid** | PASS | Inherits BaseStrategy, master switch |
+| **S6 Basis Harvest** | PASS | 10.79% avg return, 5.22% APY |
+| **S9 Cross-Asset** | PASS | 0.76% return, rotation engine |
+| **pytest** | PASS | 30 tests passed |
+| **Monte Carlo S1 pooled** | PASS | Median $1,191, Ruin 19.6%, Prob DD>20% 16.2% |
+| **Monte Carlo S2 ETH** | PASS | Median $1,437, Ruin 16.7%, Prob DD>20% 72.3% |
+| **Correlation** | PASS | Portfolio 12.25% return, Sharpe 0.79 |
+
+**Documentation:**
+- `research/experiments/EXP_Phase2B_Improvements.md` — Full test report
+- `research/experiments/PHASE_2B_2C_IMPROVEMENT_REPORT.md` — **Improvement report: what works/doesn't, parameter comparisons, deep analysis**
+- EXP_001, EXP_002, EXP_003, EXP_005 updated with Phase 2B sections
+
+## 8. Latest Full Run (Post-Recommendations)
+
+| Component | Status | Result |
+|-----------|--------|--------|
+| **pytest** | PASS | 30 tests passed |
 | **Strategy 1 backtest** | PASS | 110 trades, Sharpe 0.25 / 0.87 daily |
 | **Strategy 2 backtest** | PASS | BTC/ETH, regime helps ETH |
 | **Strategy 3 backtest** | PASS | ARB, OP, SUI (APT, TIA excluded) |

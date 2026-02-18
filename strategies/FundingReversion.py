@@ -3,8 +3,24 @@ from pandas import DataFrame
 import talib.abstract as ta
 import pandas as pd
 import numpy as np
+import logging
 
 from base_strategy import BaseStrategy
+
+try:
+    from utils.cascade_detector import cascade_fires_now
+except ImportError:
+    cascade_fires_now = lambda df, fd=None: False
+
+logger = logging.getLogger(__name__)
+
+
+try:
+    from utils.funding_utils import z_to_risk as _z_to_risk
+except ImportError:
+    def _z_to_risk(z):
+        return 0.005 if z is None else (0.015 if abs(z) >= 2.5 else (0.01 if abs(z) >= 2.0 else 0.005))
+
 
 class FundingReversion(BaseStrategy):
     """
@@ -25,12 +41,12 @@ class FundingReversion(BaseStrategy):
     
     # Risk settings (Strategy specific overrides)
     stoploss = -0.05
-    custom_risk_per_trade = 0.0025 # 0.25% Risk per trade (High Frequency/Reversion)
+    custom_risk_per_trade = 0.0025  # Base; overridden by dynamic Z-based sizing
     
-    # Strategy parameters
+    # Strategy parameters (reoptimized 2026-02-18: strategy2_params.json)
     buy_params = {
         "z_score_threshold": 1.5,
-        "adx_threshold": 30
+        "adx_threshold": 20
     }
     
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
@@ -50,7 +66,53 @@ class FundingReversion(BaseStrategy):
         # ADX for Trend Filtering
         dataframe['adx'] = ta.ADX(dataframe, timeperiod=14)
         
+        # Store last funding zscore for dynamic position sizing (Phase 2B.3)
+        if len(dataframe) > 0 and 'funding_zscore' in dataframe.columns:
+            self._last_funding_zscore = dataframe['funding_zscore'].iloc[-1]
+        else:
+            self._last_funding_zscore = 0.0
+        
+        # Store last df for cascade detection (Phase 2B.5)
+        self._last_df = dataframe.copy() if len(dataframe) > 0 else None
+        
         return dataframe
+
+    def custom_stake_amount(self, pair: str, current_time: str, current_rate: float,
+                            proposed_stake: float, min_stake: float, max_stake: float,
+                            leverage: float, entry_tag: str, side: str,
+                            **kwargs) -> float:
+        """
+        Dynamic position sizing (Phase 2B.3): Z=1.5->0.5%, Z=2.0->1.0%, Z=2.5+->1.5%.
+        Drawdown throttle: >10% halve size, >15% zero until recovers to 8%.
+        """
+        # 1. Drawdown throttle (Phase 2B.3)
+        rm = self.risk_manager
+        if rm.peak_capital > 0:
+            drawdown = (rm.peak_capital - rm.current_capital) / rm.peak_capital
+            if drawdown >= 0.15:
+                logger.warning(f"Drawdown throttle: {drawdown:.1%} >= 15%, blocking new position")
+                return min_stake
+            throttle_mult = 0.5 if drawdown >= 0.10 else 1.0
+        else:
+            throttle_mult = 1.0
+        
+        # 2. Z-based risk (Phase 2B.3)
+        z = getattr(self, '_last_funding_zscore', 1.5)
+        risk_pct = _z_to_risk(z)
+        
+        stop_distance_pct = abs(self.stoploss)
+        stop_price = current_rate * (1 - stop_distance_pct) if side == 'long' else current_rate * (1 + stop_distance_pct)
+        
+        safe_amount = rm.calculate_position_size(current_rate, stop_price, risk_per_trade=risk_pct)
+        stake = safe_amount * current_rate * throttle_mult
+        
+        # Cascade amplifier (Phase 2B.5): double conviction when cascade fires on this pair
+        if getattr(self, '_last_df', None) is not None and len(self._last_df) > 50:
+            if cascade_fires_now(self._last_df, None):
+                stake *= 2.0
+                logger.info(f"Cascade amplifier: doubling stake for {pair}")
+        
+        return min(max(stake, min_stake), max_stake)
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """

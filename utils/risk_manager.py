@@ -28,6 +28,70 @@ class RiskManager:
         self.last_reset_date = datetime.now().date()
         self.is_kill_switch_active = False
         
+        # Regime Master Switch (Phase 2B.1)
+        self.current_regime = 'UNKNOWN'
+        
+    def set_regime(self, regime: str):
+        """Update current market regime for strategy gating. Called by BaseStrategy after populate_indicators."""
+        self.current_regime = str(regime).upper() if regime else 'UNKNOWN'
+        
+    def is_strategy_allowed(self, strategy_id: str, side: str) -> bool:
+        """
+        Regime-based strategy gating. Returns True if the strategy/side is allowed in current regime.
+        strategy_id: Class name (e.g. WeekendMomentum) or S1, S2, S3, S4, S5
+        side: 'long' or 'short'
+        """
+        sid = strategy_id.upper()
+        # Map class names to S1-S5
+        if 'WEEKEND' in sid or sid == 'S1':
+            sid = 'S1'
+        elif 'FUNDING' in sid or sid == 'S2':
+            sid = 'S2'
+        elif 'UNLOCK' in sid or sid == 'S3':
+            sid = 'S3'
+        elif 'CASCADE' in sid or sid == 'S4':
+            sid = 'S4'
+        elif 'REGIME' in sid and 'GRID' in sid or sid == 'S5':
+            sid = 'S5'
+        else:
+            return True  # Unknown strategy: allow (e.g. BasisHarvest has own regime logic)
+            
+        regime = self.current_regime
+        is_long = str(side).lower() == 'long'
+        
+        if regime == 'BULL':
+            if sid == 'S1': return True
+            if sid == 'S2': return is_long  # long-only
+            if sid == 'S3': return is_long  # shorts disabled
+            if sid == 'S4': return True  # cascade as filter
+            if sid == 'S5': return False  # grid inactive
+        elif regime == 'SIDEWAYS':
+            if sid == 'S1': return True  # waits for Friday (entry logic)
+            if sid == 'S2': return True  # both sides
+            if sid == 'S3': return True
+            if sid == 'S4': return True
+            if sid == 'S5': return True  # grid active
+        elif regime == 'BEAR':
+            if sid == 'S1': return False  # disabled
+            if sid == 'S2': return not is_long  # short-only
+            if sid == 'S3': return not is_long  # short-only
+            if sid == 'S4': return True  # cascade as filter
+            if sid == 'S5': return True  # cash-preservation (reduced size via multiplier)
+        elif regime == 'TRANSITION':
+            return True  # All allowed but position_size_multiplier halves size
+        # UNKNOWN or other: allow
+        return True
+        
+    def get_position_size_multiplier(self, strategy_id: str = None) -> float:
+        """Return multiplier for position sizing. TRANSITION = 0.5. S5 in BEAR = 0.5 (cash-preservation)."""
+        mult = 1.0
+        if self.current_regime == 'TRANSITION':
+            mult = 0.5
+        elif strategy_id and ('REGIME' in str(strategy_id).upper() and 'GRID' in str(strategy_id).upper() or str(strategy_id).upper() == 'S5'):
+            if self.current_regime == 'BEAR':
+                mult = 0.5  # S5 cash-preservation in BEAR
+        return mult
+        
     def _reset_daily_metrics(self):
         """Reset daily PnL if a new day has started."""
         today = datetime.now().date()
@@ -84,7 +148,8 @@ class RiskManager:
             
         return True
 
-    def calculate_position_size(self, entry_price: float, stop_loss_price: float, risk_per_trade: float = None) -> float:
+    def calculate_position_size(self, entry_price: float, stop_loss_price: float, risk_per_trade: float = None,
+                                 strategy_id: str = None) -> float:
         """
         Calculate safe position size based on risk per trade.
         Position Size = (Account Value * Risk %) / (Entry - Stop Loss)
@@ -107,6 +172,9 @@ class RiskManager:
         max_position_value = self.current_capital * 0.20
         if quantity * entry_price > max_position_value:
             quantity = max_position_value / entry_price
+        
+        # Regime multiplier (TRANSITION = 50% size, S5 in BEAR = cash-preservation)
+        quantity *= self.get_position_size_multiplier(strategy_id)
             
         return quantity
 

@@ -57,11 +57,11 @@ class BaseStrategy(IStrategy):
         if not self.risk_manager.check_trade_allowed(pair, self.__class__.__name__):
             logger.warning(f"Trade blocked by Risk Manager: {pair}")
             return False
-            
-        # 2. Regime Gating (Optional: Subclasses can override or we enforce here)
-        # By default, we might block LONGs in BEAR regimes for all strategies?
-        # Let's leave that logic to specific strategies for flexibility, 
-        # but provide the data.
+        
+        # 2. Regime Master Switch (Phase 2B.1): strategy/side gating by regime
+        if not self.risk_manager.is_strategy_allowed(self.__class__.__name__, side):
+            logger.warning(f"Trade blocked by Regime Master Switch: {self.__class__.__name__} {side} not allowed in {self.risk_manager.current_regime}")
+            return False
         
         return True
 
@@ -83,7 +83,10 @@ class BaseStrategy(IStrategy):
         strategy_risk = getattr(self, 'custom_risk_per_trade', None)
         
         # Risk Manager Sizing
-        safe_amount = self.risk_manager.calculate_position_size(current_rate, stop_price, risk_per_trade=strategy_risk)
+        safe_amount = self.risk_manager.calculate_position_size(
+            current_rate, stop_price, risk_per_trade=strategy_risk,
+            strategy_id=self.__class__.__name__
+        )
         
         # Convert to stake currency (e.g. USDT)
         stake = safe_amount * current_rate
@@ -114,6 +117,10 @@ class BaseStrategy(IStrategy):
              dataframe['regime'] = df_regime['regime_label']
         else:
              dataframe['regime'] = 'UNKNOWN'
+        
+        # Regime Master Switch: sync latest regime to risk manager for gating
+        self._last_regime = dataframe['regime'].iloc[-1] if len(dataframe) > 0 else 'UNKNOWN'
+        self.risk_manager.set_regime(self._last_regime)
              
         return dataframe
 

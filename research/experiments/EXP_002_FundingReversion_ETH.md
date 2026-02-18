@@ -43,7 +43,28 @@
 **STATUS: APPROVED WITH CAUTION**
 The strategy has a verified statistical edge on ETH/USDT. However, the high probability of significant drawdowns (86% chance of >20% DD) implies substantial volatility risk.
 
-## 5. Next Steps
+## 5. Phase 2B Drawdown Mitigation (Feb 2026)
+
+### Dynamic Position Sizing
+- Z=1.5 → 0.5% risk; Z=2.0 → 1.0%; Z=2.5+ → 1.5%
+- Implemented in `FundingReversion.custom_stake_amount`
+
+### Drawdown Throttle
+- Portfolio drawdown > 10% → halve next position size
+- Portfolio drawdown > 15% → block new trades until recovery
+
+### Cascade Amplifier
+- When cascade fires (RSI < 30 + vol spike), double conviction weight on S2 signal
+- `utils/cascade_detector.py` + `FundingReversion` integration
+
+### Latest Test Results (Feb 2026)
+- **WFA ETH**: +44.64% return, 213 trades, 59.62% win rate
+- **Monte Carlo**: Median $1,437, Ruin 16.7%, Prob DD>20% 72.3%
+- **Regime Filter**: Reduces ETH drawdown by 7.67pp (58.5%→50.9%)
+
+See `EXP_Phase2B_Improvements.md` for full test report.
+
+## 6. Next Steps
 1.  **Deployment**: Valid for live trading on ETH/USDT.
 2.  **Risk Management**: Strict position sizing (0.5% - 1% risk per trade) is mandatory.
 3.  **Monitoring**: Use `utils/telegram_alerts.py` to monitor live signals matched against the Z=1.5 threshold.

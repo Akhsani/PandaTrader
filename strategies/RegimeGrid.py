@@ -1,7 +1,4 @@
-from freqtrade.strategy import IStrategy
 from pandas import DataFrame
-import talib.abstract as ta
-import freqtrade.vendor.qtpylib.indicators as qtpylib
 import pandas as pd
 import numpy as np
 import sys
@@ -11,14 +8,11 @@ import os
 for p in ['/freqtrade', os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))]:
     if p not in sys.path:
         sys.path.insert(0, p)
-try:
-    from utils.regime_detector import CryptoRegimeDetector
-except ImportError:
-    # Fallback or mock for initial loading if utils not found
-    print("WARNING: Could not import CryptoRegimeDetector. Grid logic will be disabled.")
-    CryptoRegimeDetector = None
 
-class RegimeGrid(IStrategy):
+from strategies.base_strategy import BaseStrategy
+
+
+class RegimeGrid(BaseStrategy):
     """
     Regime-Adaptive Grid Strategy
     - Detects market regime (Bull, Bear, Sideways) using HMM
@@ -38,43 +32,25 @@ class RegimeGrid(IStrategy):
     
     stoploss = -0.05
     timeframe = '1h'
-    
-    def __init__(self, config: dict) -> None:
-        super().__init__(config)
-        self.regime_detector = CryptoRegimeDetector() if CryptoRegimeDetector else None
-        self.is_fitted = False
+    can_short = False
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        # 1. Calculate features for Detector (ADX, ATR, etc handled inside Detector)
-        # But we need basic columns? Detector handles it.
+        # 1. Base Strategy: Regime Detection (Phase 2B.6 - Master Switch)
+        dataframe = super().populate_indicators(dataframe, metadata)
         
-        # 2. Train HMM on available data
-        if self.regime_detector and not self.is_fitted:
-             self.regime_detector.fit(dataframe)
-             self.is_fitted = True
-        
-        if self.regime_detector and self.is_fitted:
-            df_regime = self.regime_detector.predict(dataframe)
-            dataframe['regime'] = df_regime['regime_label']
-        else:
-            dataframe['regime'] = 'UNKNOWN'
+        # 2. Grid bands (center, lower, upper)
+        dataframe['center'] = dataframe['close'].rolling(24).mean()
+        dataframe['lower_band'] = dataframe['center'] * (1 - self.grid_spacing)
+        dataframe['upper_band'] = dataframe['center'] * (1 + self.grid_spacing)
             
         return dataframe
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
         Grid Entry Logic (Static %):
-        - Regime == SIDEWAYS
+        - Regime == SIDEWAYS (Master Switch blocks in BULL)
         - Price < Center - Spacing -> Buy dip
         """
-        
-        # Center line (24h rolling mean)
-        dataframe['center'] = dataframe['close'].rolling(24).mean()
-        
-        # Static Bands
-        dataframe['lower_band'] = dataframe['center'] * (1 - self.grid_spacing)
-        dataframe['upper_band'] = dataframe['center'] * (1 + self.grid_spacing)
-        
         # Enter Long if:
         # 1. Regime is SIDEWAYS
         # 2. Price is below lower band
