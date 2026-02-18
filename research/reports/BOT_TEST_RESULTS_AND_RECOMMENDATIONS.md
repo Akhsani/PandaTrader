@@ -215,7 +215,7 @@ See [docs/3COMMAS_VALIDATION.md](../../docs/3COMMAS_VALIDATION.md) for steps.
 ## 7. Run Commands
 
 ```bash
-# Unit tests (22 tests total)
+# Unit tests (25 tests total)
 pytest tests/test_dca_bot.py tests/test_grid_bot.py tests/test_signal_bot.py tests/test_base_bot.py tests/test_monte_carlo.py tests/test_walk_forward.py -v
 
 # Backtests

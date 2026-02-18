@@ -117,6 +117,8 @@ def main():
                         help="Block DCA entries when regime is BEAR; skip test windows in BEAR")
     parser.add_argument("--score-mode", default="compound", choices=["compound", "ev"],
                         help="compound=total return, ev=EV×win_rate for optimization")
+    parser.add_argument("--optuna-trials", type=int, default=None,
+                        help="When --score-mode ev: use Optuna instead of grid search (e.g. 50)")
     args = parser.parse_args()
 
     strategy_map = {"sa": dca_strategy_sa}
@@ -166,6 +168,7 @@ def main():
             test_window_days=args.test,
             score_mode=args.score_mode,
             pre_test_hook=pre_test_hook,
+            optuna_trials=args.optuna_trials,
         )
         res = analyzer.run()
         if not res.empty:

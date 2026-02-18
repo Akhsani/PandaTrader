@@ -56,6 +56,10 @@ Freqtrade uses template variables in the webhook payload:
 - `{secret}`: 3Commas secret
 - `{bot_uuid}`: 3Commas Signal Bot UUID
 
+## P3.5 Webhook E2E Test (Live/Dry-Run Only)
+
+The webhook E2E test validates Freqtrade → webhook → 3Commas. **It cannot use historical backtest data.** Webhooks fire only in trade mode (`freqtrade trade --dry-run` or live), which uses live/delayed exchange data. Freqtrade backtest does not invoke webhooks. Use dry-run or paper trading to test the webhook pipeline.
+
 ## Troubleshooting
 
 - **Webhook not firing:** Ensure `webhook.enabled` is `true` in config
