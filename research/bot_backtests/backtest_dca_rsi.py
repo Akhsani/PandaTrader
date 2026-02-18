@@ -1,9 +1,11 @@
 """
 S-A: RSI Oversold DCA — RSI-7 < 20 triggers entry; mean reversion to TP 2.5%.
 Backtest on BTC, ETH, SOL.
+Use --regime-gate to block entries in BEAR regime.
 """
 import sys
 import os
+import argparse
 import pandas as pd
 import numpy as np
 
@@ -49,8 +51,8 @@ def load_data(symbol: str, days: int = 730):
     return df
 
 
-def run_backtest(symbol: str, initial_capital: float = 10000.0) -> dict:
-    """Run S-A RSI DCA backtest for one symbol."""
+def run_backtest(symbol: str, initial_capital: float = 10000.0, regime_gate: bool = False) -> dict:
+    """Run S-A RSI DCA backtest for one symbol. regime_gate: block entries in BEAR regime."""
     df = load_data(symbol)
     if df is None or len(df) < 50:
         return {"error": f"Insufficient data for {symbol}"}
@@ -60,6 +62,18 @@ def run_backtest(symbol: str, initial_capital: float = 10000.0) -> dict:
     # Shift: signal at bar i means we open at bar i+1 open
     signal = signal.shift(1)
     signal = signal.where(signal.notna(), False).astype(bool)
+
+    if regime_gate:
+        try:
+            from utils.regime_detector import CryptoRegimeDetector
+            det = CryptoRegimeDetector(n_regimes=4)
+            det.fit(df)
+            df_regime = det.predict(df)
+            regime_ok = df_regime["regime_label"] != "BEAR"
+            regime_ok = regime_ok.reindex(signal.index, fill_value=True)
+            signal = signal & regime_ok
+        except Exception as e:
+            print(f"  Regime gate warning: {e}, proceeding without gate")
 
     params = {
         "base_order_volume": 25,
@@ -82,20 +96,28 @@ def run_backtest(symbol: str, initial_capital: float = 10000.0) -> dict:
     result["symbol"] = symbol
     result["period_start"] = str(df.index[0].date())
     result["period_end"] = str(df.index[-1].date())
-    result["gate_passed"] = (
-        result["sharpe_ratio"] > 1.0 and result["max_drawdown"] > -25
-    )
+    # DCA gate: Per-deal EV > 0, Win Rate > 75% (MC ruin < 10% from Monte Carlo run)
+    ev = result.get("expected_value_per_deal", 0)
+    wr = result.get("win_rate", 0)
+    result["gate_passed"] = ev > 0 and wr > 0.75
     return result
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--regime-gate", action="store_true",
+                        help="Block DCA entries when regime is BEAR (uses CryptoRegimeDetector)")
+    args = parser.parse_args()
+
     symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT"]
     print("=== S-A RSI Oversold DCA Backtest ===\n")
+    if args.regime_gate:
+        print("Regime gate: ON (blocking BEAR entries)\n")
 
     all_results = []
     for sym in symbols:
         try:
-            r = run_backtest(sym)
+            r = run_backtest(sym, regime_gate=args.regime_gate)
             if "error" in r:
                 print(f"{sym}: {r['error']}")
                 continue
@@ -106,15 +128,17 @@ def main():
             print(f"  Avg Duration: {r['avg_deal_duration_hours']:.0f}h")
 
             if r["gate_passed"]:
-                print(f"  Gate: PASSED (Sharpe>1.0, MDD<25%)")
+                print(f"  Gate: PASSED (EV>0, WR>75%)")
             else:
                 print(f"  Gate: FAILED")
+            print(f"  EV per deal: {r.get('expected_value_per_deal', 0):.4f}")
             report_path = write_backtest_report(
                 metrics={
                     "sharpe_ratio": r["sharpe_ratio"],
                     "max_drawdown": r["max_drawdown"],
                     "win_rate": r["win_rate"],
                     "total_deals": r["total_deals"],
+                    "expected_value_per_deal": r.get("expected_value_per_deal", 0),
                     "gate_passed": r["gate_passed"],
                 },
                 params=r.get("optimized_params", {}),

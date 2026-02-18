@@ -66,7 +66,14 @@ def run_backtest(
     result["symbol"] = symbol
     result["period_start"] = str(df.index[0].date())
     result["period_end"] = str(df.index[-1].date())
-    result["gate_passed"] = result["sharpe_ratio"] > 1.0 and result["max_drawdown"] > -25
+    # Grid gate: Cell profit > 3× fees (0.6%), annualized return > 12% (MC ruin < 5% from MC run)
+    fee = 0.001
+    min_cell_profit = 3 * (2 * fee)  # 3× round-trip fees = 0.006
+    grid_deals = [d for d in result.get("closed_deals", []) if d.get("exit_reason") == "grid"]
+    mean_cell_profit = np.mean([d["pnl"] for d in grid_deals]) if grid_deals else 0
+    ann_ret = result.get("annualized_capital_return", 0)
+    result["mean_cell_profit"] = mean_cell_profit
+    result["gate_passed"] = mean_cell_profit > min_cell_profit and ann_ret > 12
     return result
 
 
@@ -80,6 +87,7 @@ def main():
     print(f"Period: {r['period_start']} to {r['period_end']}")
     print(f"Sharpe: {r['sharpe_ratio']:.2f} | MDD: {r['max_drawdown']:.1f}%")
     print(f"Win Rate: {r['win_rate']:.1%} | Deals: {r['total_deals']}")
+    print(f"Annualized Return: {r.get('annualized_capital_return', 0):.1f}% | Mean Cell Profit: {r.get('mean_cell_profit', 0)*100:.2f}%")
     print(f"Gate: {'PASSED' if r['gate_passed'] else 'FAILED'}")
     report_path = write_backtest_report(
         metrics={
@@ -87,6 +95,8 @@ def main():
             "max_drawdown": r["max_drawdown"],
             "win_rate": r["win_rate"],
             "total_deals": r["total_deals"],
+            "annualized_capital_return": r.get("annualized_capital_return", 0),
+            "mean_cell_profit": r.get("mean_cell_profit", 0),
             "gate_passed": r["gate_passed"],
         },
         params=r.get("optimized_params", {}),

@@ -12,3 +12,4 @@ pandas-ta-openbb
 ta-lib
 freqtrade  # Required for: freqtrade backtest, dry-run (paper), live. Strategies in strategies/ import it.
 pytest
+optuna

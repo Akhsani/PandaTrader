@@ -37,6 +37,17 @@ def main():
         grid_lines_count=args.grid_lines,
     )
     stats, _ = validator.run_simulation(n_simulations=args.simulations)
+
+    # Add annualized yield if exit_time available
+    if "exit_time" in trades.columns:
+        import pandas as pd
+        exit_times = pd.to_datetime(trades["exit_time"])
+        years = (exit_times.max() - exit_times.min()).total_seconds() / (365.25 * 24 * 3600)
+        years = max(years, 0.001)
+        median_equity = stats.get("median_final_equity", args.capital)
+        total_ret = (median_equity - args.capital) / args.capital
+        stats["annualized_yield_pct"] = (total_ret / years) * 100
+
     validator.generate_report(stats)
 
     os.makedirs("research/monte_carlo/results", exist_ok=True)

@@ -16,14 +16,16 @@
     "stop_loss_percentage": 15.0,
     "max_active_deals": 1,
     "cooldown_between_deals": 0,
-    "fee": 0.001
+    "fee": 0.001,
+    "slippage_bps": 0.0
   },
   "metrics": {
-    "sharpe_ratio": -1.1988159694544664,
-    "max_drawdown": -4.560615832047001,
-    "win_rate": 0.9,
-    "total_deals": 130,
-    "gate_passed": false
+    "sharpe_ratio": -1.3196159731499268,
+    "max_drawdown": -4.455318890423271,
+    "win_rate": 0.8865979381443299,
+    "total_deals": 97,
+    "expected_value_per_deal": 0.0041494845360824095,
+    "gate_passed": true
   },
-  "gate_passed": false
+  "gate_passed": true
 }

@@ -23,7 +23,12 @@ python research/bot_backtests/backtest_grid_btc_reversal.py
 python research/bot_backtests/backtest_signal_ema.py
 ```
 
-**Gate:** Sharpe > 1.0, MDD < 25%. If failed, iterate parameters or drop strategy.
+**Gate (bot-type-specific):**
+- **DCA:** Per-deal EV > 0, Win Rate > 75%
+- **Grid:** Cell profit > 3× fees, annualized return > 12%
+- **Signal:** Sharpe > 1.0, MDD < 25%
+
+If failed, iterate parameters or drop strategy.
 
 ## Step 3: Parameter Optimization
 

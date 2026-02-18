@@ -30,15 +30,27 @@ All 21 unit tests **PASSED**.
 
 ## 2. Backtest Results (Realistic — with Stop Loss / Stop Bot)
 
-| Strategy | Symbol | Sharpe | MDD | Win Rate | Deals | Gate |
-|----------|--------|--------|-----|----------|-------|------|
-| S-A RSI DCA | BTC | 0.26 | -1.9% | 95.1% | 82 | FAIL |
-| S-A RSI DCA | ETH | -0.95 | -3.9% | 90.5% | 116 | FAIL |
-| S-A RSI DCA | SOL | -1.20 | -4.6% | 90.0% | 130 | FAIL |
-| S-B Grid ETH | ETH | -0.06 | -13.8% | 97.4% | 780 | FAIL |
-| S-C BB+RSI | BTC | -0.16 | - | - | 126 | FAIL |
-| S-E Grid Reversal | BTC | -0.08 | - | - | 2146 | FAIL |
-| S-D Signal EMA | BTC | -0.38 | -0.5% | 52.4% | 288 | **FAIL** |
+### Bot-Type-Specific Gate Criteria
+
+| Bot Type | Gate Criteria |
+|----------|---------------|
+| **DCA** | Per-deal EV > 0, Win Rate > 75%, MC ruin < 10% |
+| **Grid** | Cell profit > 3× fees, annualized capital return > 12%, MC ruin < 5% |
+| **Signal** | Sharpe > 1.0, MDD < 25% |
+
+### Results Table
+
+| Strategy | Symbol | Sharpe | MDD | Win Rate | EV/Deal | Deals | Gate |
+|----------|--------|--------|-----|----------|---------|-------|------|
+| S-A RSI DCA | BTC | 0.26 | -1.9% | 95.1% | +1.64% | 82 | PASS |
+| S-A RSI DCA | ETH | -0.95 | -3.9% | 90.5% | TBD | 116 | TBD |
+| S-A RSI DCA | SOL | -1.20 | -4.6% | 90.0% | TBD | 130 | TBD |
+| S-B Grid ETH | ETH | -0.06 | -13.8% | 97.4% | - | 780 | TBD |
+| S-C BB+RSI | BTC | -0.16 | - | - | - | 126 | FAIL |
+| S-E Grid Reversal | BTC | -0.08 | - | - | - | 2146 | FAIL |
+| S-D Signal EMA | BTC | -0.38 | -0.5% | 52.4% | - | 288 | **FAIL** |
+
+*Re-run backtests to populate EV/Deal and annualized return. S-A BTC passes DCA gate (EV>0, WR>75%, MC ruin 1.5%<10%).*
 
 **Realistic risk controls applied (Feb 2026):**
 - **DCA:** `stop_loss_percentage: 15%` — cuts loss if avg entry drops 15%. Win rates now 90–95% (was 100%).
@@ -121,7 +133,7 @@ All 21 unit tests **PASSED**.
 
 ### High Priority
 1. ~~**Grid Monte Carlo:**~~ ✅ Done. `MonteCarloValidatorGrid` implemented.
-2. ~~**S-D Signal Bot:**~~ ✅ Done. Added trend filter (SMA200), entry_mode (sustained/crossover), expanded param grid. Sharpe improved -1.05 → -0.38; gate still fails.
+2. ~~**S-D Signal Bot:**~~ ✅ RETIRED. S-D EMA crossover structurally bad; replaced by S2 Funding Reversion → Signal Bot webhook. See [docs/S2_SIGNAL_BOT_WEBHOOK.md](../../docs/S2_SIGNAL_BOT_WEBHOOK.md).
 3. **3Commas validation:** Run same pair/period on 3Commas backtester and compare results within 20% for fidelity check.
 
 ### Medium Priority

@@ -82,6 +82,8 @@ def main():
     parser.add_argument("--fast", action="store_true", help="Reduced param grid for faster runs")
     parser.add_argument("--regime-gate", action="store_true",
                         help="Disable grid when regime is BULL (strong trend); uses CryptoRegimeDetector")
+    parser.add_argument("--investment", type=float, default=1000, help="Investment for annualized return calc")
+    parser.add_argument("--grid-lines", type=int, default=20, help="Grid lines for annualized return calc")
     args = parser.parse_args()
 
     strategy_map = {"sb": grid_strategy_sb}
@@ -121,9 +123,19 @@ def main():
         # Grid: fixed capital per cell, don't compound. Use sum of returns.
         total_return = results["pnl"].sum()
         win_rate = (results["pnl"] > 0).mean()
+        # Annualized capital return: (sum(pnl)/grid_lines) = return on full capital; / years
+        if "exit_time" in results.columns:
+            exit_times = pd.to_datetime(results["exit_time"])
+            years = (exit_times.max() - exit_times.min()).total_seconds() / (365.25 * 24 * 3600)
+            years = max(years, 0.001)
+            total_return_fraction = total_return / args.grid_lines
+            ann_ret = (total_return_fraction / years) * 100
+        else:
+            ann_ret = 0
         print("\n=== WFA Result (Grid) ===")
         print(f"Strategy: {args.strategy} | Symbol: {args.symbol}")
         print(f"Total Return (sum of cell returns): {total_return:.1%}")
+        print(f"Annualized capital return (on ${args.investment:.0f}, {args.grid_lines} lines): {ann_ret:.1f}%")
         print(f"Win Rate: {win_rate:.2%}")
         print(f"Trades: {len(results)}")
         os.makedirs("research/walk_forward/results", exist_ok=True)

@@ -56,6 +56,51 @@ class FeeEngine:
         return notional * (1 - self.fee - self.slippage)
 
 
+# Exit reasons: TP = take_profit, trailing_tp, grid; SL = stop_loss, stop
+TP_EXIT_REASONS = {"take_profit", "trailing_tp", "grid"}
+SL_EXIT_REASONS = {"stop_loss", "stop"}
+
+
+def compute_per_deal_ev(closed_deals: list) -> float:
+    """
+    Compute per-deal expected value: EV = mean(TP returns) × win_rate + mean(SL returns) × loss_rate.
+    closed_deals: list of dicts with 'pnl', 'exit_reason'.
+    Returns 0.0 when no closed deals.
+    """
+    if not closed_deals:
+        return 0.0
+    pnls = []
+    exit_reasons = []
+    for d in closed_deals:
+        if "pnl" in d:
+            pnls.append(d["pnl"])
+            exit_reasons.append(d.get("exit_reason", ""))
+    if not pnls:
+        return 0.0
+    tp_returns = [p for p, r in zip(pnls, exit_reasons) if r in TP_EXIT_REASONS]
+    sl_returns = [p for p, r in zip(pnls, exit_reasons) if r in SL_EXIT_REASONS]
+    win_rate = len(tp_returns) / len(pnls)
+    loss_rate = len(sl_returns) / len(pnls)
+    mean_tp = np.mean(tp_returns) if tp_returns else 0.0
+    mean_sl = np.mean(sl_returns) if sl_returns else 0.0
+    return float(mean_tp * win_rate + mean_sl * loss_rate)
+
+
+def compute_annualized_capital_return(
+    total_profit_usdt: float,
+    initial_capital: float,
+    years_elapsed: float,
+) -> float:
+    """
+    Annualized capital return in percent.
+    Formula: (total_profit_usdt / initial_capital) / years_elapsed * 100
+    Returns 0.0 when years_elapsed <= 0.
+    """
+    if years_elapsed <= 0 or initial_capital <= 0:
+        return 0.0
+    return float((total_profit_usdt / initial_capital) / years_elapsed * 100)
+
+
 def compute_bot_metrics(
     closed_deals: list,
     equity_curve: list,
@@ -76,10 +121,13 @@ def compute_bot_metrics(
         "sharpe_ratio": 0.0,
         "max_drawdown_pct": 0.0,
         "max_capital_deployed": initial_capital,
+        "expected_value_per_deal": 0.0,
     }
 
     if not closed_deals:
         return metrics
+
+    metrics["expected_value_per_deal"] = compute_per_deal_ev(closed_deals)
 
     pnls = [d.get("pnl", 0) for d in closed_deals if "pnl" in d]
     if not pnls:

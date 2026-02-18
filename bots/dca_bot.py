@@ -232,6 +232,7 @@ class DCABotSimulator:
             "total_deals": metrics["total_deals"],
             "avg_deal_duration_hours": metrics["avg_deal_duration_hours"],
             "max_capital_deployed": metrics["max_capital_deployed"],
+            "expected_value_per_deal": metrics["expected_value_per_deal"],
             "closed_deals": self.closed_deals,
             "trades_df": pd.DataFrame(self.closed_deals) if self.closed_deals else pd.DataFrame(),
         }

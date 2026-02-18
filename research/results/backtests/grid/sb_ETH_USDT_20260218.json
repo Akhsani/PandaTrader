@@ -13,6 +13,7 @@
     "expansion_down": false,
     "stop_bot_price": 1707.516,
     "fee": 0.001,
+    "slippage_bps": 0.0,
     "leverage": 1
   },
   "metrics": {
@@ -20,6 +21,8 @@
     "max_drawdown": -13.750534099479239,
     "win_rate": 0.9743589743589743,
     "total_deals": 780,
+    "annualized_capital_return": -1.0587154316049225,
+    "mean_cell_profit": 0.003264459786054574,
     "gate_passed": false
   },
   "gate_passed": false

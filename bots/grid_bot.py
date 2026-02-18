@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 from typing import Optional
 
-from bots.base_bot import FeeEngine, compute_bot_metrics
+from bots.base_bot import FeeEngine, compute_bot_metrics, compute_annualized_capital_return
 
 
 class GridBotSimulator:
@@ -134,6 +134,19 @@ class GridBotSimulator:
             prev_high = high
             self.equity_curve.append(initial_capital + total_profit)
 
+        # Years elapsed for annualized return
+        first_ts = idx[0]
+        last_ts = idx[-1]
+        if hasattr(first_ts, "to_pydatetime"):
+            first_ts = first_ts.to_pydatetime()
+        if hasattr(last_ts, "to_pydatetime"):
+            last_ts = last_ts.to_pydatetime()
+        delta = (last_ts - first_ts).total_seconds() / (365.25 * 24 * 3600)
+        years_elapsed = max(delta, 0.001)
+        annualized_return = compute_annualized_capital_return(
+            total_profit, initial_capital, years_elapsed
+        )
+
         metrics = compute_bot_metrics(
             self.closed_deals,
             self.equity_curve,
@@ -149,6 +162,7 @@ class GridBotSimulator:
             "total_deals": metrics["total_deals"],
             "avg_deal_duration_hours": metrics["avg_deal_duration_hours"],
             "max_capital_deployed": metrics["max_capital_deployed"],
+            "annualized_capital_return": annualized_return,
             "closed_deals": self.closed_deals,
             "trades_df": pd.DataFrame(self.closed_deals) if self.closed_deals else pd.DataFrame(),
         }

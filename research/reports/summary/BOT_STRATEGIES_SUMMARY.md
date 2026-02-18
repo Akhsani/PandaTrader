@@ -3,15 +3,16 @@
 **Last Updated:** February 2026  
 **Full Results:** [BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md](../BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md)
 
-| Strategy | Bot Type | Status | Sharpe | MDD | Win Rate | Gate |
-|----------|----------|--------|--------|-----|----------|------|
-| S-A RSI DCA | DCA | Realistic | 0.26 (BTC) | -1.9% | 95.1% | FAIL |
-| S-B Grid ETH | Grid | Realistic | -0.06 | -13.8% | 97.4% | FAIL |
-| S-C BB+RSI | DCA | Tested | -0.16 | - | - | FAIL |
-| S-D EMA Signal | Signal | Gate Failed | -0.38 | -0.5% | 52.4% | FAIL |
-| S-E Grid Reversal | Grid | Tested | -0.08 | - | - | FAIL |
+| Strategy | Bot Type | Status | Sharpe | MDD | Win Rate | Gate | Paper Trade Ready |
+|----------|----------|--------|--------|-----|----------|------|-------------------|
+| S-A RSI DCA | DCA | Realistic | 0.26 (BTC) | -1.9% | 95.1% | PASS | Yes |
+| S-B Grid ETH | Grid | Realistic | -0.06 | -13.8% | 97.4% | FAIL | No |
+| S-C BB+RSI | DCA | Tested | -0.16 | - | - | FAIL | No |
+| S-D EMA Signal | Signal | RETIRED | -0.38 | -0.5% | 52.4% | FAIL | No |
+| S2 Funding Reversion | Signal | Routing | - | - | - | - | Paper Trade |
+| S-E Grid Reversal | Grid | Tested | -0.08 | - | - | FAIL | No |
 
-*Realistic: DCA stop_loss 15%; Grid stop_bot 10% below lower. Win rates no longer 100%.
+*S-A passes DCA gate (EV>0, WR>75%, MC ruin<10%). S-B backtest gate fails (cell profit 0.33%<0.6%, annualized -1.1%<12%); MC ruin varies by WFA run.
 
 ## WFA & Monte Carlo
 
@@ -21,17 +22,27 @@
 | S-B Grid (ETH) | 991.5% (sum) | 58.95% | 0% | PASS |
 | S-D Signal (BTC) | -41.73% (OOS) | - | - | - |
 
-*DCA MC: 40% prob DD>20% (realistic with SL). Grid MC: additive returns.
+*DCA MC: 40% prob DD>20% (realistic with SL). Grid MC: additive returns. Slippage: add `slippage_bps` to params. 3Commas validation: see [docs/3COMMAS_VALIDATION.md](../../docs/3COMMAS_VALIDATION.md).
+
+## WFA Options
+
+- `--fast`: Reduced param grid for faster runs
+- `--pool`: DCA only; pool OOS trades across BTC, ETH, SOL
+- `--regime-gate`: Grid skip BULL; DCA skip BEAR (block entries in bear regime)
 
 ## How to Update
 
 1. Run backtests: `python research/bot_backtests/backtest_*.py` (see full list in BOT_TEST_RESULTS)
-2. Run WFA: `python research/walk_forward/run_wfa_dca.py`, `run_wfa_grid.py`, `run_wfa_signal.py`
+2. Run WFA: `python research/walk_forward/run_wfa_dca.py`, `run_wfa_grid.py`, `run_wfa_signal.py` (add `--fast`, `--pool`, or `--regime-gate` as needed)
 3. Run MC: `python research/monte_carlo/run_mc_*.py` (requires WFA output first)
 4. Update this table and [BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md](../BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md)
 
-## Gate Criteria
+## Gate Criteria (Bot-Type-Specific)
 
-- **Backtest:** Sharpe > 1.0, MDD < 25%
-- **WFA:** OOS Sharpe > 0.8, degradation < 40%
-- **Monte Carlo:** Prob of ruin < 20%
+| Bot Type | Backtest Gate | Monte Carlo Gate |
+|----------|---------------|------------------|
+| **DCA** | Per-deal EV > 0, Win Rate > 75% | MC ruin < 10% |
+| **Grid** | Cell profit > 3× fees, annualized return > 12% | MC ruin < 5% |
+| **Signal** | Sharpe > 1.0, MDD < 25% | Prob of ruin < 20% |
+
+- **WFA:** OOS return positive, degradation < 40%
