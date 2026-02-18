@@ -14,6 +14,7 @@ import talib.abstract as ta
 import freqtrade.vendor.qtpylib.indicators as qtpylib
 from base_strategy import BaseStrategy
 
+
 class WeekendMomentum(BaseStrategy):
     """
     Strategy 1: Weekend Momentum Premium (v2 - Optimized)
@@ -22,6 +23,10 @@ class WeekendMomentum(BaseStrategy):
     Crypto returns on weekends (Sat-Sun) significantly exceed weekday returns.
     Enhanced with a Trend Filter (EMA50 > EMA200) AND Regime Gating.
     
+    Modes:
+    - fri-mon: Enter Friday close, exit Monday close (default, all pairs)
+    - mon-wed: Enter Monday close, exit Wednesday close (ETH/USDT only)
+    
     Optimizations v2:
     - Inherits BaseStrategy (Risk Manager + Regime Detector)
     - Stoploss tightened to -3% (from 5%)
@@ -29,6 +34,9 @@ class WeekendMomentum(BaseStrategy):
     """
     
     INTERFACE_VERSION = 3
+    
+    # Mode: fri-mon (Fri->Mon) or mon-wed (Mon->Wed, ETH only)
+    mode = CategoricalParameter(['fri-mon', 'mon-wed'], default='fri-mon', space='buy', optimize=False)
     
     # ROI: We ideally exit on Monday, but take profit if lucky
     minimal_roi = {
@@ -71,30 +79,25 @@ class WeekendMomentum(BaseStrategy):
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
         Entry Logic:
-        1. It is Friday
-        2. Regime is NOT Bear (Master Switch)
-        3. Long Term Trend is Bullish (EMA50 > EMA200)
-        4. Volatility gate: ATR below 75th percentile (avoid high-vol weekends)
+        - fri-mon: Friday (4)
+        - mon-wed: Monday (0), ETH/USDT only
+        Plus: Regime NOT Bear, Trend bullish, ADX > 20, Volatility gate
         """
+        m = self.mode.value
+        entry_day = 0 if m == 'mon-wed' else 4
+        # mon-wed: ETH only
+        pair_ok = True
+        if m == 'mon-wed':
+            pair_ok = metadata.get('pair', '') == 'ETH/USDT'
+
         dataframe.loc[
             (
-                # Entry on Friday (4)
-                (dataframe['day_of_week'] == 4) &
-                
-                # REGIME MASTER SWITCH: No trades in Bear Market
-                # This protects against "Weekend Crashes" in Bear Markets
+                (dataframe['day_of_week'] == entry_day) &
+                pair_ok &
                 (dataframe['regime'] != 'BEAR') &
-                
-                # Trend Filter: EMA50 > EMA200 (Golden Cross / Bullish)
                 (dataframe['ema50'] > dataframe['ema200']) &
-                
-                # ADX Filter: Trend strength > 20 (avoid weak trends)
                 (dataframe['adx'] > 20) &
-                
-                # Volatility gate: only trade when ATR < 75th percentile (skip high-vol weekends)
                 ((dataframe['atr'] < dataframe['atr_p75']) | dataframe['atr_p75'].isna()) &
-                
-                # Volume check
                 (dataframe['volume'] > 0)
             ),
             'enter_long'] = 1
@@ -104,12 +107,14 @@ class WeekendMomentum(BaseStrategy):
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         """
         Exit Logic:
-        1. It is Monday
+        - fri-mon: Monday (0)
+        - mon-wed: Wednesday (2)
         """
+        m = self.mode.value
+        exit_day = 2 if m == 'mon-wed' else 0
         dataframe.loc[
             (
-                # Exit on Monday (0)
-                (dataframe['day_of_week'] == 0) &
+                (dataframe['day_of_week'] == exit_day) &
                 (dataframe['volume'] > 0)
             ),
             'exit_long'] = 1

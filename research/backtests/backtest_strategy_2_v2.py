@@ -11,6 +11,12 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')
 from utils.regime_detector import CryptoRegimeDetector
 from utils.data_loader import find_funding_path
 
+try:
+    from utils.cascade_detector import detect_cascade
+except ImportError:
+    def detect_cascade(*args, **kwargs):
+        return pd.Series(dtype=bool)
+
 
 def load_data(symbol, limit=2000):
     """
@@ -56,9 +62,10 @@ def load_data(symbol, limit=2000):
     return price_df, funding_df
 
 class FundingBacktester:
-    def __init__(self, use_regime_filter=False):
+    def __init__(self, use_regime_filter=False, cascade_amplifier=1.0):
         self.detector = CryptoRegimeDetector()
         self.use_regime_filter = use_regime_filter
+        self.cascade_amplifier = cascade_amplifier  # 2.0 = 2x stake when cascade fires
         self.stoploss = 0.05
         self.z_threshold = 1.5
         
@@ -99,6 +106,8 @@ class FundingBacktester:
         position = None
         trades = []
         equity_curve = [capital]
+        cascade_series = detect_cascade(df) if len(df) > 50 else pd.Series(dtype=bool)
+        cascade_series = cascade_series.reindex(df.index, fill_value=False)
         
         for i in range(50, len(df)):
             curr_row = df.iloc[i]
@@ -131,53 +140,58 @@ class FundingBacktester:
                         reason = 'Stop Loss'
                 
                 if exit:
-                    # Apply Exit Fee/Slippage (0.10%)
+                    # Cascade amplifier: 2x stake = 2x PnL impact
+                    mult = position.get('cascade_mult', 1.0)
+                    pnl_adj = pnl * mult
                     fee_slippage = 0.0010
-                    capital_new = capital * (1 + pnl) * (1 - fee_slippage)
+                    capital_new = capital * (1 + pnl_adj) * (1 - fee_slippage)
                     
-                    trades.append({'date': date, 'pnl': pnl - fee_slippage, 'reason': reason, 'side': position['side']})
+                    trades.append({'date': date, 'pnl': pnl_adj - fee_slippage, 'reason': reason, 'side': position['side']})
                     position = None
                     capital = capital_new
             
             # ENTRY (1h Logic)
             if not position:
+                cascade_fires = bool(cascade_series.iloc[i]) if i < len(cascade_series) else False
+                mult = self.cascade_amplifier if cascade_fires else 1.0
+                
                 # LONG: Funding is negative (Z < -1.5)
                 if z_score < -self.z_threshold:
                     if self.use_regime_filter and regime == 'BEAR':
                         continue 
                     
-                    # Apply Entry Fee/Slippage (0.10%)
                     capital = capital * (1 - 0.0010)
-                    position = {'side': 'long', 'entry_price': price}
+                    position = {'side': 'long', 'entry_price': price, 'cascade_mult': mult}
                 
                 # SHORT
                 elif z_score > self.z_threshold:
                     if self.use_regime_filter and regime == 'BULL':
                         continue
                     
-                    # Apply Entry Fee/Slippage (0.10%)
                     capital = capital * (1 - 0.0010)
-                    position = {'side': 'short', 'entry_price': price}
+                    position = {'side': 'short', 'entry_price': price, 'cascade_mult': mult}
             
             equity_curve.append(capital)
             
         return capital, trades, equity_curve
 
-def run_comparison(symbol='BTC/USDT'):
+def run_comparison(symbol='BTC/USDT', cascade_amplifier=1.0):
     limit = 1500
 
     print(f"\n--- Strategy 2 Optimization (v2): Regime Gating Test ({symbol}) ---")
+    if cascade_amplifier != 1.0:
+        print(f"Cascade Amplifier: {cascade_amplifier}x stake when cascade fires")
 
     # Load Data (1h to match WFA methodology - funding reversion is intraday)
     price, funding = load_data(symbol, limit)
 
-    # 1. Baseline Run
-    tester_base = FundingBacktester(use_regime_filter=False)
+    # 1. Baseline Run (no regime filter)
+    tester_base = FundingBacktester(use_regime_filter=False, cascade_amplifier=cascade_amplifier)
     df_base = tester_base.prepare_data(price, funding)
     cap_base, trades_base, eq_base = tester_base.run(df_base)
 
-    # 2. Optimized Run
-    tester_opt = FundingBacktester(use_regime_filter=True)
+    # 2. Optimized Run (regime filter ON)
+    tester_opt = FundingBacktester(use_regime_filter=True, cascade_amplifier=cascade_amplifier)
     df_opt = tester_opt.prepare_data(price, funding)
     cap_opt, trades_opt, eq_opt = tester_opt.run(df_opt)
 
@@ -223,12 +237,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--symbol', default='BTC/USDT', help='Symbol to test (e.g. BTC/USDT, ETH/USDT)')
     parser.add_argument('--both', action='store_true', help='Run on both BTC and ETH (WFA showed +20%% on ETH)')
+    parser.add_argument('--cascade', type=float, default=1.0, help='Cascade amplifier (2.0 = 2x stake when cascade fires)')
     args = parser.parse_args()
 
     if args.both:
         results = []
         for sym in ['BTC/USDT', 'ETH/USDT']:
-            r = run_comparison(sym)
+            r = run_comparison(sym, cascade_amplifier=args.cascade)
             results.append(r)
         print("\n--- MULTI-ASSET SUMMARY ---")
         for r in results:
@@ -237,4 +252,4 @@ if __name__ == "__main__":
             print(f"{r['symbol']}: Baseline {ret_base:.1%} / {r['trades_base']} trades | "
                   f"Filtered {ret_opt:.1%} / {r['trades_opt']} trades | DD {r['dd_base']:.1%} -> {r['dd_opt']:.1%}")
     else:
-        run_comparison(args.symbol)
+        run_comparison(args.symbol, cascade_amplifier=args.cascade)

@@ -106,11 +106,13 @@ class FundingReversion(BaseStrategy):
         safe_amount = rm.calculate_position_size(current_rate, stop_price, risk_per_trade=risk_pct)
         stake = safe_amount * current_rate * throttle_mult
         
-        # Cascade amplifier (Phase 2B.5): double conviction when cascade fires on this pair
-        if getattr(self, '_last_df', None) is not None and len(self._last_df) > 50:
+        # Cascade amplifier (Phase 2B.5): boost stake when cascade fires.
+        # Phase 3A: 2x caused DD > 25%; reduced to 1.5x. Set to 1.0 to disable.
+        CASCADE_AMPLIFIER = 1.5
+        if CASCADE_AMPLIFIER > 1.0 and getattr(self, '_last_df', None) is not None and len(self._last_df) > 50:
             if cascade_fires_now(self._last_df, None):
-                stake *= 2.0
-                logger.info(f"Cascade amplifier: doubling stake for {pair}")
+                stake *= CASCADE_AMPLIFIER
+                logger.info(f"Cascade amplifier: {CASCADE_AMPLIFIER}x stake for {pair}")
         
         return min(max(stake, min_stake), max_stake)
 

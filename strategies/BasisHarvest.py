@@ -3,6 +3,7 @@
 Strategy 6: Spot-Perp Basis Harvesting (Delta-Neutral Funding Carry)
 Phase 2C - Long spot, short perp, collect 8-hour funding.
 Regime guard: Only in BEAR or SIDEWAYS (never BULL - short gamma risk).
+Entry threshold: 0.00005 (single source of truth in utils.funding_utils)
 """
 from pandas import DataFrame
 import pandas as pd
@@ -10,6 +11,11 @@ import numpy as np
 import logging
 
 from strategies.base_strategy import BaseStrategy
+
+try:
+    from utils.funding_utils import ENTRY_THRESHOLD
+except ImportError:
+    ENTRY_THRESHOLD = 0.00005
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +48,10 @@ class BasisHarvest(BaseStrategy):
         # Regime guard: Only BEAR or SIDEWAYS (never BULL)
         regime_ok = (dataframe['regime'] == 'BEAR') | (dataframe['regime'] == 'SIDEWAYS')
         
-        # Entry: Positive funding (we receive as short perp). Fine-tuned: 0.00005 (EXP_FineTuning_Results)
+        # Entry: Positive funding (we receive as short perp). ENTRY_THRESHOLD from funding_utils
         dataframe.loc[
             regime_ok &
-            (dataframe['funding_rate'] > 0.00005) &
+            (dataframe['funding_rate'] > ENTRY_THRESHOLD) &
             (dataframe['volume'] > 0),
             'enter_long'] = 1
         
@@ -53,7 +59,7 @@ class BasisHarvest(BaseStrategy):
         # This strategy assumes perp trading; long = synthetic long spot + short perp via funding.
         dataframe.loc[
             regime_ok &
-            (dataframe['funding_rate'] > 0.00005) &
+            (dataframe['funding_rate'] > ENTRY_THRESHOLD) &
             (dataframe['volume'] > 0),
             'enter_short'] = 0  # No standalone short
         return dataframe

@@ -8,6 +8,12 @@ import pandas as pd
 import numpy as np
 
 
+def test_entry_threshold_constant():
+    """ENTRY_THRESHOLD = 0.00005 is single source of truth (Phase 3A)"""
+    from utils.funding_utils import ENTRY_THRESHOLD
+    assert ENTRY_THRESHOLD == 0.00005
+
+
 def test_z_to_risk():
     from utils.funding_utils import z_to_risk
     assert z_to_risk(1.5) == 0.005

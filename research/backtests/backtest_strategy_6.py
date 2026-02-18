@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from utils.data_loader import load_ohlcv
 from utils.data_collector import fetch_ohlcv, fetch_funding_history
+from utils.funding_utils import ENTRY_THRESHOLD
 
 
 def load_or_fetch_basis_data(symbol, days=730):
@@ -88,13 +89,15 @@ def load_or_fetch_basis_data(symbol, days=730):
     return merged
 
 
-def backtest_basis_harvest(df, init_capital=1000, fee=0.0005, neg_streak_exit=3, entry_threshold=0.00005, capital_pct=1.0):
+def backtest_basis_harvest(df, init_capital=1000, fee=0.0005, neg_streak_exit=3, entry_threshold=None, capital_pct=1.0):
     """
     Backtest: Long spot, short perp. Collect funding every 8h.
     Exit when `neg_streak_exit` consecutive negative funding periods (basis inversion).
-    Entry when funding > entry_threshold.
+    Entry when funding > entry_threshold (default: ENTRY_THRESHOLD from funding_utils).
     capital_pct: fraction of capital deployed to funding (1.0 = 100%).
     """
+    if entry_threshold is None:
+        entry_threshold = ENTRY_THRESHOLD
     if df is None or len(df) < 100:
         return None
     
