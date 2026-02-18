@@ -14,10 +14,10 @@ COPY deploy/config-funding.json /freqtrade/user_data/config-funding.json
 COPY deploy/entrypoint.sh /freqtrade/entrypoint.sh
 
 ENTRYPOINT ["/freqtrade/entrypoint.sh"]
-# Paper trading: S1 (Mon-Wed ETH) + S2 (ETH) + S6 (BTC)
-# Set API_SERVER_PASSWORD in Railway env for FreqUI; replace STRONG_PASSWORD_HERE via entrypoint
+# Paper trading: FreqTrade supports single strategy per bot. Using WeekendMomentum (S1).
+# For S2+S6, add separate Railway services. Set API_SERVER_PASSWORD in Railway env.
 CMD ["trade", \
      "--config", "/freqtrade/user_data/config.json", \
-     "--strategy", "WeekendMomentum,FundingReversion,BasisHarvest", \
+     "--strategy", "WeekendMomentum", \
      "--strategy-path", "/freqtrade/user_data/strategies", \
      "--dry-run-wallet", "1000"]
