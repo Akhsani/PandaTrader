@@ -1,12 +1,24 @@
 # 3Commas Backtester Fidelity Check
 
-Compare PandaTrader bot simulation results with 3Commas built-in backtester to validate fidelity within 20%.
+Compare PandaTrader bot simulation results with 3Commas built-in backtester to validate fidelity within 20%. **This is the most important validation step before any real money touches the system.**
 
 ## When to Run
 
 - Before paper trading a new strategy
 - After any parameter changes
 - Quarterly as part of re-validation
+
+## S-A RSI DCA Quick Checklist (~30 min)
+
+1. **Create S-A RSI DCA bot in 3Commas** (paper mode)
+   - Pair: BTC/USDT
+   - TP 2.5%, SL 15%, BO $25, SO $30, 4 SOs
+   - Trigger: RSI-7 < 20
+2. **Run 3Commas backtester** for Feb 2024 – Feb 2026 (match PandaTrader period)
+3. **Compare:** Win rate (expect within ±5%), deal count (expect within ±20%), total return
+4. **Fill Section 4.5 table** in `research/reports/BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md` with PandaTrader vs 3Commas numbers
+
+**Gate:** Within 20% on key metrics = simulation validated. If off by more, investigate fill logic or fee calculation before paper trading.
 
 ## Steps
 

@@ -16,6 +16,7 @@ def main():
     parser.add_argument("--symbol", default="BTC/USDT")
     parser.add_argument("--capital", type=float, default=1000)
     parser.add_argument("--simulations", type=int, default=1000)
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducible MC (default 42)")
     args = parser.parse_args()
 
     wfa_file = f"research/walk_forward/results/wfa_signal_{args.strategy}_{args.symbol.replace('/', '_')}.csv"
@@ -29,7 +30,7 @@ def main():
         return
 
     validator = MonteCarloValidator(trades, initial_capital=args.capital)
-    stats, _ = validator.run_simulation(n_simulations=args.simulations)
+    stats, _ = validator.run_simulation(n_simulations=args.simulations, random_state=args.seed)
     validator.generate_report(stats)
 
     os.makedirs("research/monte_carlo/results", exist_ok=True)

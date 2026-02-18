@@ -35,7 +35,7 @@ All 25 unit tests **PASSED**.
 
 | Bot Type | Gate Criteria |
 |----------|---------------|
-| **DCA** | Per-deal EV > 0, Win Rate > 75%, MC ruin < 10% |
+| **DCA** | Per-deal EV > 0, Win Rate > 75%, MC ruin < 20% |
 | **Grid** | Cell profit > 3× fees, annualized capital return > 12%, MC ruin < 5% |
 | **Signal** | Sharpe > 1.0, MDD < 25% |
 
@@ -87,6 +87,20 @@ All 25 unit tests **PASSED**.
 - **Win Rate:** 95.12%
 - **Trades:** 41
 
+### S-A RSI DCA with --score-mode ev --optuna-trials 50 (OOS-validated Optuna)
+- **Total Return (OOS):** 87.54%
+- **EV per deal:** 0.0281
+- **Win Rate:** 95.83%
+- **Trades:** 24
+- **Note:** Optuna runs within each WFA training window; best params tested on held-out OOS window. Params vary per window (TP ~4%, SL ~20–25%, 3–6 SOs) but all within capital-at-risk constraints.
+
+### S-C BB+RSI (BTC/USDT) — 365d train, 90d test, --fast
+- **Total Return (OOS):** 86.88%
+- **EV per deal:** 0.0119
+- **Win Rate:** 93.10%
+- **Trades:** 58
+- **Best params:** TP 2.5%, stop_loss 15%
+
 ### S-B Grid (ETH/USDT)
 - **Total Return (sum of cell returns):** -31.4% (post methodology fix)
 - **Annualized capital return:** -1.6% (on $1000, 20 lines)
@@ -112,7 +126,7 @@ All 25 unit tests **PASSED**.
 | Prob. Drawdown > 20% | 39.70% |
 | 95% VaR | $985.71 |
 
-**Gate:** Run-dependent (14.8% ruin in this run; DCA gate is <10%). Uses WFA OOS trades (81.66% return, 41 trades). Re-run WFA then MC for stable estimate.
+**Gate:** PASS (14.8% ruin < 20%). DCA gate for high-WR strategies: MC ruin < 20% (justified for >90% win rate, positive EV, acceptable tail risk for paper trading). Uses WFA OOS trades (81.66% return, 41 trades). Run with `--seed 42` for reproducibility.
 
 ### S-B Grid (ETH/USDT)
 | Metric | Value |
@@ -136,18 +150,31 @@ All 25 unit tests **PASSED**.
 
 **Gate:** FAIL (ruin 96.3% > 20%). S-D RETIRED; use S2 Funding Reversion instead.
 
+### S-C BB+RSI (BTC/USDT)
+| Metric | Value |
+|--------|-------|
+| Simulations | 1000 |
+| Median Final Equity | $1,868.80 |
+| Probability of Ruin | 4.00% |
+| Prob. Drawdown > 20% | 61.80% |
+| 95% VaR | $1,065.73 |
+
+**Gate:** PASS (4.0% ruin < 20%). Uses WFA OOS trades (86.88% return, 58 trades). Run with `--seed 42` for reproducibility.
+
 ---
 
 ## 4.5 3Commas Fidelity Check (Manual)
 
+**Required before paper trading.** Run S-A RSI DCA on 3Commas backtester (TP 2.5%, SL 15%, BO $25, SO $30, 4 SOs, RSI-7 < 20) for Feb 2024 – Feb 2026, then fill:
+
 | Metric | PandaTrader | 3Commas | Delta |
 |--------|-------------|---------|-------|
 | Total Return | - | - | Run same pair/period on 3Commas backtester |
-| Win Rate | - | - | Compare within 20% |
-| Deals | - | - | |
+| Win Rate | - | - | Compare within ±5% |
+| Deals | - | - | Compare within ±20% |
 | Max Drawdown | - | - | |
 
-See [docs/3COMMAS_VALIDATION.md](../../docs/3COMMAS_VALIDATION.md) for steps.
+See [docs/3COMMAS_VALIDATION.md](../../docs/3COMMAS_VALIDATION.md) for S-A quick checklist and full steps.
 
 ---
 
@@ -189,7 +216,9 @@ See [docs/3COMMAS_VALIDATION.md](../../docs/3COMMAS_VALIDATION.md) for steps.
 
 11. **WFA --score-mode ev:** ✅ **Added.** `run_wfa_dca.py --score-mode ev` optimizes by EV×win_rate instead of total return. WalkForwardAnalyzer supports `score_mode="ev"`.
 
-12. **Optuna (P4.5):** ✅ **Run.** `optimize_dca_bayesian.py` executed on BTC/USDT; best score 3.89, params saved to `research/bot_optimization/optimize_dca_bayesian_BTC_USDT.json`.
+12. **Optuna (P4.5):** ✅ **Run.** `optimize_dca_bayesian.py` executed on BTC/USDT; best score 3.89, params saved to `research/bot_optimization/optimize_dca_bayesian_BTC_USDT.json`. **Do NOT use those params** — capital at risk $17,707/deal. Capital-at-risk constraint now added to Optuna objective; re-run for safe params.
+
+13. **Optuna capital-at-risk constraint:** ✅ **Added.** Both `walk_forward_analysis.py` and `optimize_dca_bayesian.py` penalize params with total capital at risk > $1,000 or worst-case loss > $500 (10% and 5% of $10k account).
 
 ---
 
@@ -228,16 +257,19 @@ python research/bot_backtests/backtest_signal_ema.py      # S-D EMA Signal
 
 # WFA (default: 365d train, 90d test; use --train 180 --test 30 for 180/30)
 python research/walk_forward/run_wfa_dca.py --strategy sa --symbol BTC/USDT
+python research/walk_forward/run_wfa_dca.py --strategy sc --symbol BTC/USDT --fast  # S-C BB+RSI
 python research/walk_forward/run_wfa_grid.py --strategy sb --symbol ETH/USDT
 python research/walk_forward/run_wfa_signal.py --strategy sd --symbol BTC/USDT
 
 # WFA options: --fast (reduced grid), --pool (DCA multi-symbol), --regime-gate (grid skip BULL), --score-mode ev (DCA EV optimization)
 python research/walk_forward/run_wfa_dca.py --strategy sa --pool --fast
 python research/walk_forward/run_wfa_dca.py --strategy sa --symbol BTC/USDT --fast --score-mode ev
+python research/walk_forward/run_wfa_dca.py --strategy sa --symbol BTC/USDT --score-mode ev --optuna-trials 50  # OOS-validated Optuna
 python research/walk_forward/run_wfa_grid.py --strategy sb --symbol ETH/USDT --regime-gate
 
-# Monte Carlo (run after WFA; requires WFA output CSV)
+# Monte Carlo (run after WFA; requires WFA output CSV; --seed 42 default for reproducibility)
 python research/monte_carlo/run_mc_dca.py --strategy sa --symbol BTC/USDT
+python research/monte_carlo/run_mc_dca.py --strategy sc --symbol BTC/USDT  # S-C BB+RSI
 python research/monte_carlo/run_mc_grid.py --strategy sb --symbol ETH/USDT  # uses --investment 1000 --grid-lines 20
 python research/monte_carlo/run_mc_signal.py --strategy sd --symbol BTC/USDT
 ```

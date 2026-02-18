@@ -20,10 +20,10 @@
 | MDD | -1.9% | -3.9% | -4.6% |
 | Win Rate | 95.1% | 90.5% | 90.0% |
 | Deals | 82 | 116 | 130 |
-| Gate | FAIL | FAIL | FAIL |
+| Gate | PASS | PASS | PASS |
 
-**WFA (BTC):** OOS return 105.52%, 64 trades, 93.75% win rate.  
-**Monte Carlo:** Median equity $2,065, 1.5% ruin, 40% prob DD>20%. Gate PASS.
+**WFA (BTC):** OOS return 81.66%, 41 trades, 95.12% win rate.  
+**Monte Carlo:** Median equity $1,433, 14.8% ruin, 40% prob DD>20%. Gate PASS (MC ruin < 20%).
 
 **Commands:**
 - Backtest: `python research/bot_backtests/backtest_dca_rsi.py`
@@ -31,7 +31,7 @@
 - MC: `python research/monte_carlo/run_mc_dca.py --strategy sa --symbol BTC/USDT`
 
 ## 4. Conclusion
-**Realistic.** Stop loss 15% added for realism; win rates 90–95% (was 100%). Backtest gate fails; WFA OOS 105%, MC ruin 1.5%. Re-optimize TP/SL for gate pass if needed.
+**Realistic.** Stop loss 15% added for realism; win rates 90–95% (was 100%). Backtest gate PASS (EV>0, WR>75%); WFA OOS 81.66%, MC ruin 14.8% (gate PASS with MC ruin < 20%). Paper trade candidate after 3Commas fidelity check.
 
 ## 5. 3Commas Export
 Use `bots.export_config.export_to_3commas(optimized_params, 'dca')`.

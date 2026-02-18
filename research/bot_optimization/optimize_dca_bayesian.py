@@ -88,6 +88,20 @@ def main():
             "cooldown_between_deals": 0,
             "fee": 0.001,
         }
+        # Capital-at-risk constraint (10% of $10k account = $1,000 max)
+        bo = params["base_order_volume"]
+        so_vol = params["safety_order_volume"]
+        max_so = params["max_safety_orders"]
+        mv_coeff = params["martingale_volume_coefficient"]
+        sl_pct = params["stop_loss_percentage"]
+        total_so_capital = so_vol * sum(mv_coeff**i for i in range(max_so))
+        total_capital_at_risk = bo + total_so_capital
+        if total_capital_at_risk > 1000:
+            return -999.0
+        # Worst-case loss constraint (5% of $10k = $500 max)
+        worst_loss = total_capital_at_risk * (sl_pct / 100)
+        if worst_loss > 500:
+            return -999.0
         bot = DCABotSimulator(params)
         result = bot.run(ohlcv, signal, initial_capital=initial_capital)
 

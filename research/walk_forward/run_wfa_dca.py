@@ -51,6 +51,16 @@ def compute_rsi(close: pd.Series, period: int = 7) -> pd.Series:
     return (100 - (100 / (1 + rs))).fillna(50)
 
 
+def compute_bb_lower(close: pd.Series, period: int = 20) -> pd.Series:
+    """Bollinger Band lower band."""
+    if HAS_TALIB:
+        _, _, lower = talib.BBANDS(close, timeperiod=period)
+        return lower
+    sma = close.rolling(period).mean()
+    std = close.rolling(period).std()
+    return sma - 2 * std
+
+
 def dca_strategy_sa(price_df: pd.DataFrame, funding_df=None, **params) -> pd.DataFrame:
     """S-A: RSI-7 < 20 signal. regime_gate: block entries when regime is BEAR."""
     if price_df is None or len(price_df) < 50:
@@ -71,6 +81,38 @@ def dca_strategy_sa(price_df: pd.DataFrame, funding_df=None, **params) -> pd.Dat
             signal = signal & regime_ok
         except Exception:
             pass
+    bot_params = {
+        "base_order_volume": params.get("base_order_volume", 25),
+        "safety_order_volume": params.get("safety_order_volume", 30),
+        "max_safety_orders": params.get("max_safety_orders", 4),
+        "safety_order_step_percentage": params.get("safety_order_step_percentage", 0.75),
+        "martingale_volume_coefficient": params.get("martingale_volume_coefficient", 2.0),
+        "martingale_step_coefficient": params.get("martingale_step_coefficient", 1.5),
+        "take_profit_percentage": params.get("take_profit_percentage", 2.5),
+        "stop_loss_percentage": params.get("stop_loss_percentage", 15.0),
+        "trailing_take_profit": params.get("trailing_take_profit", False),
+        "max_active_deals": 1,
+        "cooldown_between_deals": 0,
+        "fee": 0.001,
+    }
+    bot = DCABotSimulator(bot_params)
+    result = bot.run(df, signal, initial_capital=10000)
+    trades = result.get("trades_df", pd.DataFrame())
+    if trades.empty:
+        return pd.DataFrame()
+    return trades[["pnl", "exit_time", "entry_time", "exit_reason"]].copy()
+
+
+def dca_strategy_sc(price_df: pd.DataFrame, funding_df=None, **params) -> pd.DataFrame:
+    """S-C: BB lower + RSI < 30 dual confirmation."""
+    if price_df is None or len(price_df) < 50:
+        return pd.DataFrame()
+    df = price_df.copy()
+    df.columns = [c.lower() for c in df.columns]
+    df["rsi"] = compute_rsi(df["close"], period=7)
+    df["bb_lower"] = compute_bb_lower(df["close"], period=20)
+    s = ((df["close"] <= df["bb_lower"]) & (df["rsi"] < 30)).shift(1)
+    signal = s.where(s.notna(), False).astype(bool)
     bot_params = {
         "base_order_volume": params.get("base_order_volume", 25),
         "safety_order_volume": params.get("safety_order_volume", 30),
@@ -121,7 +163,7 @@ def main():
                         help="When --score-mode ev: use Optuna instead of grid search (e.g. 50)")
     args = parser.parse_args()
 
-    strategy_map = {"sa": dca_strategy_sa}
+    strategy_map = {"sa": dca_strategy_sa, "sc": dca_strategy_sc}
     strategy_func = strategy_map.get(args.strategy, dca_strategy_sa)
 
     if args.fast:

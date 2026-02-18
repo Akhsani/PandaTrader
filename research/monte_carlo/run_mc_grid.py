@@ -18,6 +18,7 @@ def main():
     parser.add_argument("--investment", type=float, default=1000, help="Total investment for grid")
     parser.add_argument("--grid-lines", type=int, default=20, help="Grid lines count")
     parser.add_argument("--simulations", type=int, default=1000)
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducible MC (default 42)")
     args = parser.parse_args()
 
     wfa_file = f"research/walk_forward/results/wfa_grid_{args.strategy}_{args.symbol.replace('/', '_')}.csv"
@@ -36,7 +37,7 @@ def main():
         investment_amount=args.investment,
         grid_lines_count=args.grid_lines,
     )
-    stats, _ = validator.run_simulation(n_simulations=args.simulations)
+    stats, _ = validator.run_simulation(n_simulations=args.simulations, random_state=args.seed)
 
     # Add annualized yield if exit_time available
     if "exit_time" in trades.columns:

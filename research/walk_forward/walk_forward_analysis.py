@@ -98,6 +98,20 @@ class WalkForwardAnalyzer:
                     "tp_pct": trial.suggest_float("tp_pct", 1.0, 4.0),
                     "sl_pct": trial.suggest_float("sl_pct", 8.0, 25.0),
                 }
+                # Capital-at-risk constraint (10% of $10k account = $1,000 max)
+                bo = trial_params["base_order_volume"]
+                so_vol = trial_params["safety_order_volume"]
+                max_so = trial_params["max_safety_orders"]
+                mv_coeff = trial_params["mv_coeff"]
+                sl_pct = trial_params["sl_pct"]
+                total_so_capital = so_vol * sum(mv_coeff**i for i in range(max_so))
+                total_capital_at_risk = bo + total_so_capital
+                if total_capital_at_risk > 1000:
+                    return -999.0
+                # Worst-case loss constraint (5% of $10k = $500 max)
+                worst_loss = total_capital_at_risk * (sl_pct / 100)
+                if worst_loss > 500:
+                    return -999.0
                 params = _optuna_to_dca_params(trial_params, optuna_extra)
                 results = self.strategy(train_price, train_funding, **params)
                 if results is None or results.empty or len(results) < 10:
