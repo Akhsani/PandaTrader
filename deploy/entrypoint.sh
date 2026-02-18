@@ -9,9 +9,12 @@ case "$STRATEGY" in
   BasisHarvest) CONFIG_SRC="/freqtrade/user_data/config-s6.json" ;;
   *) CONFIG_SRC="/freqtrade/user_data/config.json" ;;
 esac
-[ -f "$CONFIG_SRC" ] && cp "$CONFIG_SRC" /freqtrade/user_data/config.json
-
-CONFIGS=("/freqtrade/user_data/config.json" "/freqtrade/user_data/config-funding.json")
+if [ ! -f "$CONFIG_SRC" ]; then
+  echo "ERROR: Config not found: $CONFIG_SRC" >&2
+  exit 1
+fi
+# Use strategy config directly (avoids copy/volume overlay issues)
+CONFIGS=("$CONFIG_SRC" "/freqtrade/user_data/config-funding.json")
 
 for CONFIG in "${CONFIGS[@]}"; do
     [ -f "$CONFIG" ] || continue
@@ -42,7 +45,7 @@ done
 
 # Execute Freqtrade with STRATEGY from env (enables multi-service deployment)
 exec freqtrade trade \
-  --config /freqtrade/user_data/config.json \
+  --config "$CONFIG_SRC" \
   --strategy "$STRATEGY" \
   --strategy-path /freqtrade/user_data/strategies \
   --dry-run-wallet 1000
