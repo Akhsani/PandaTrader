@@ -4,8 +4,10 @@ import logging
 import sys
 import os
 
-# Add project root to path to allow importing utils
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Add possible paths for utils module (container: /freqtrade, local: project root)
+for p in ['/freqtrade', os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
 from utils.risk_manager import RiskManager
 from utils.regime_detector import CryptoRegimeDetector

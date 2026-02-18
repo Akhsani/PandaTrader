@@ -7,3 +7,8 @@ __pycache__/
 data/
 user_data/
 config.json
+
+# Deployment
+*.sqlite
+user_data/logs/
+deploy/.env

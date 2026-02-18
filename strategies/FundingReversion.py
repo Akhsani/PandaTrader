@@ -4,7 +4,7 @@ import talib.abstract as ta
 import pandas as pd
 import numpy as np
 
-from strategies.base_strategy import BaseStrategy
+from base_strategy import BaseStrategy
 
 class FundingReversion(BaseStrategy):
     """

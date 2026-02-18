@@ -7,8 +7,10 @@ import numpy as np
 import sys
 import os
 
-# Add project root to path to import utils
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Add possible paths for utils module (container: /freqtrade, local: project root)
+for p in ['/freqtrade', os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 try:
     from utils.regime_detector import CryptoRegimeDetector
 except ImportError:
