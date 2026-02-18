@@ -20,6 +20,13 @@ from research.backtests.backtest_strategy_9 import (
     S9_UNIVERSE, load_funding_multi, compute_zscore_ranking
 )
 
+# --- S8 imports ---
+from research.backtests.backtest_strategy_8 import (
+    S8_UNIVERSE, load_or_fetch_ohlcv, compute_synthetic_accumulation_signal,
+    load_nansen_flows_or_synthetic, backtest_whale_accumulation,
+)
+from utils.nansen_whale_tracker import NansenWhaleTracker
+
 
 def backtest_rotation_tunable(funding_dict, init_capital=1000, window=90,
                               z_entry=0.5, z_exit=0.5, capital_pct=0.1):
@@ -179,6 +186,52 @@ def run_s2_reoptimize():
     return {}
 
 
+def run_s8_finetune():
+    """S8: Whale Accumulation - hold_days, threshold, lookback tuning."""
+    print("\n" + "="*60)
+    print("S8 FINE-TUNING: Whale Accumulation Tracker")
+    print("="*60)
+
+    tracker = NansenWhaleTracker()
+    data = {}
+    for sym in S8_UNIVERSE:
+        df = load_or_fetch_ohlcv(sym, days=365, timeframe='1d')
+        if df is not None and len(df) >= 60:
+            data[sym] = df
+
+    if not data:
+        print("No S8 data available.")
+        return {}
+
+    results = []
+    for hold_days in [5, 7, 10, 14]:
+        for threshold in [0.3, 0.5, 0.7]:
+            for lookback in [5, 7, 14]:
+                rets = []
+                for sym, df in data.items():
+                    signal, _ = load_nansen_flows_or_synthetic(sym, df, tracker, lookback=lookback, require_nansen=False)
+                    if signal is not None:
+                        bt = backtest_whale_accumulation(
+                            df, signal, hold_days=hold_days,
+                            threshold=threshold, fee=0.001
+                        )
+                        if bt:
+                            rets.append(bt['total_return'])
+                if rets:
+                    avg_ret = np.mean(rets)
+                    results.append({
+                        'hold_days': hold_days, 'threshold': threshold,
+                        'lookback': lookback, 'avg_return': avg_ret,
+                        'n_assets': len(rets),
+                    })
+
+    results = sorted(results, key=lambda x: x['avg_return'], reverse=True)
+    print("\nTop 10 S8 parameter combinations:")
+    for i, r in enumerate(results[:10]):
+        print(f"  {i+1}. hold={r['hold_days']}d thresh={r['threshold']} lookback={r['lookback']} -> Return={r['avg_return']:.2%}")
+    return {'s8': results, 'best': results[0] if results else None}
+
+
 def run_s1_pooled_monwed():
     """S1: Run pooled Mon-Wed variant."""
     print("\n" + "="*60)
@@ -212,6 +265,7 @@ def main():
     
     all_results.update(run_s6_finetune())
     all_results.update(run_s9_finetune())
+    all_results.update(run_s8_finetune())
     all_results.update(run_s2_reoptimize())
     all_results.update(run_s1_pooled_monwed())
     

@@ -192,8 +192,26 @@ The `crypto-bot-strategy-2.docx` review identifies:
 ### Strategy 7 (FUTURE): IV Premium Harvesting (Options)
 *Medium-term research — requires Deribit/options infra.*
 
-### Strategy 8 (FUTURE): On-Chain Whale Accumulation Tracker
-*Requires Glassnode/Nansen API integration.*
+### Strategy 8: On-Chain Whale Accumulation Tracker
+*Nansen API integration (MCP configured).*
+
+- [x] **Data & Research**
+    - [x] Created `utils/nansen_whale_tracker.py` — Nansen Smart Money netflow, token flows.
+    - [x] Token map: BTC (WBTC), ETH (WETH), SOL; mid-caps: AVAX, LINK, ARB, OP.
+- [x] **Backtest**
+    - [x] Created `research/backtests/backtest_strategy_8.py` — synthetic momentum proxy when Nansen unavailable.
+    - [x] `--midcap` flag: include AVAX, LINK, ARB, OP.
+- [x] **Signal Logic**
+    - [x] Accumulation score from net_flow_24h_usd, net_flow_7d_usd.
+    - [x] Fine-tune: hold_days, threshold, lookback in `finetune_strategies.py`.
+- [x] **Implementation**
+    - [x] Created `strategies/WhaleAccumulation.py` inheriting BaseStrategy.
+    - [x] Regime filter: BULL/SIDEWAYS preferred.
+- [x] **Validation**
+    - [x] Unit tests: `tests/test_nansen_whale_tracker.py`, `tests/test_whale_accumulation.py`.
+    - [x] WFA: `research/walk_forward/run_wfa_strategy_8.py` (--pool).
+    - [x] Monte Carlo: `research/monte_carlo/run_mc_strategy_8.py` (--pooled).
+    - [x] Documentation: `research/experiments/EXP_008_WhaleAccumulation.md`.
 
 ### Strategy 10 (FUTURE): Pre-Halving Accumulation Pattern
 *Regime overlay for S1 when halving window active (Apr 2028).*
@@ -250,3 +268,4 @@ The `crypto-bot-strategy-2.docx` review identifies:
 - **[Date]**: Initial task list created.
 - **[Feb 18, 2026]**: Integrated `crypto-bot-strategy-2.docx` Deep Strategy Review. Added Phase 2B (critical fixes), Phase 2C (new strategies S6, S9). Regime master switch, S2 drawdown throttle, S3 narrative scoring, S4 cascade-as-filter, S1 WFA expansion. Paper trading portfolio spec: S1 + S6 core, S9 after validation.
 - **[Feb 18, 2026]**: Phase 2B & 2C implementation complete. Regime Master Switch in risk_manager; S1 WFA --pool and --variant mon-wed; S2 dynamic Z-based sizing and drawdown throttle; S3 narrative filter; S4 cascade detector + S2 amplifier; S5 RegimeGrid inherits BaseStrategy; S6 BasisHarvest backtest + strategy; S9 Cross-Asset Funding Rotation. 30 unit tests passing.
+- **[Feb 18, 2026]**: Strategy 8 (Whale Accumulation) implemented. Nansen whale tracker, backtest, WhaleAccumulation Freqtrade strategy, WFA, Monte Carlo, unit tests. Token universe: BTC, ETH, SOL (liquid); AVAX, LINK, ARB, OP (mid-caps via --midcap). 44 unit tests passing.
