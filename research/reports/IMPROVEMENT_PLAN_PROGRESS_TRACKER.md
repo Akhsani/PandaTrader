@@ -142,11 +142,11 @@
 - [x] **4.3** Integrate per-deal EV into DCA bot output
   - [x] `compute_bot_metrics()` returns `expected_value_per_deal`; DCA result includes it
 
-- [ ] **4.4** Update WFA scoring for DCA (deferred)
-  - [ ] Add `--score-mode ev` flag for EV-based optimization
+- [x] **4.4** Update WFA scoring for DCA
+  - [x] Add `--score-mode ev` flag for EV-based optimization
 
-- [ ] **4.5** Run optimization and validate
-  - [ ] Run `optimize_dca_bayesian.py` on BTC/USDT (manual)
+- [x] **4.5** Run optimization and validate
+  - [x] Run `optimize_dca_bayesian.py` on BTC/USDT; best score 3.89, saved to `research/bot_optimization/optimize_dca_bayesian_BTC_USDT.json`
 
 **Files:** `research/bot_optimization/optimize_dca_bayesian.py`, `research/bot_optimization/optimize_dca_params.py` (reference), `bots/base_bot.py`, `research/walk_forward/run_wfa_dca.py`, `requirements.txt`
 

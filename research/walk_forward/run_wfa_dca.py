@@ -115,6 +115,8 @@ def main():
     parser.add_argument("--pool", action="store_true", help="Run WFA on BTC, ETH, SOL and pool OOS trades")
     parser.add_argument("--regime-gate", action="store_true",
                         help="Block DCA entries when regime is BEAR; skip test windows in BEAR")
+    parser.add_argument("--score-mode", default="compound", choices=["compound", "ev"],
+                        help="compound=total return, ev=EV×win_rate for optimization")
     args = parser.parse_args()
 
     strategy_map = {"sa": dca_strategy_sa}
@@ -162,6 +164,7 @@ def main():
             funding_df=None,
             train_window_days=args.train,
             test_window_days=args.test,
+            score_mode=args.score_mode,
             pre_test_hook=pre_test_hook,
         )
         res = analyzer.run()

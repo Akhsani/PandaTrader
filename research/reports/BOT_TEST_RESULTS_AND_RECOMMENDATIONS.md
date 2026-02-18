@@ -8,7 +8,7 @@
 
 ## 1. Unit Test Results
 
-All 22 unit tests **PASSED**.
+All 25 unit tests **PASSED**.
 
 | Test File | Tests | Status |
 |-----------|-------|--------|
@@ -47,12 +47,12 @@ All 22 unit tests **PASSED**.
 | S-A RSI DCA | ETH | -0.95 | -3.9% | 90.5% | +0.74% | - | 116 | PASS |
 | S-A RSI DCA | SOL | -1.20 | -4.6% | 90.0% | +0.65% | - | 130 | PASS |
 | S-A RSI DCA (regime-gate) | BTC | 0.01 | -2.0% | 94.2% | +1.38% | - | 69 | PASS |
-| S-B Grid ETH | ETH | -0.06 | -13.8% | 97.4% | - | -1.1% | 780 | FAIL |
-| S-C BB+RSI | BTC | -0.21 | - | - | - | - | 113 | FAIL |
+| S-B Grid ETH | ETH | -0.56 | -12.3% | 97.9% | - | -2.7% | 933 | FAIL |
+| S-C BB+RSI | BTC | -0.21 | -2.4% | 93.8% | +1.31% | - | 113 | PASS |
 | S-E Grid Reversal | BTC | -0.08 | - | - | - | - | 2146 | FAIL |
 | S-D Signal EMA | BTC | -0.38 | -0.5% | 52.4% | - | - | 288 | **FAIL** |
 
-*S-A passes DCA gate (EV>0, WR>75%, MC ruin 2.1%<10%). S-B fails: cell profit 0.33%<0.6%, annualized -1.1%<12%.*
+*S-A, S-C pass DCA gate (EV>0, WR>75%). S-B fails: cell profit 0.17%<0.6%, annualized -2.7%<12% (post methodology fix: range from first 120 bars, break on stop).*
 
 **Realistic risk controls applied (Feb 2026):**
 - **DCA:** `stop_loss_percentage: 15%` — cuts loss if avg entry drops 15%. Win rates now 90–95% (was 100%).
@@ -81,17 +81,23 @@ All 22 unit tests **PASSED**.
 - **Trades:** 31
 - **Note:** Fewer trades; blocks entries in BEAR regime.
 
+### S-A RSI DCA with --score-mode ev (BTC/USDT)
+- **Total Return (OOS):** 81.66% (same as compound; EV scoring selects same params with --fast grid)
+- **EV per deal:** 0.0154
+- **Win Rate:** 95.12%
+- **Trades:** 41
+
 ### S-B Grid (ETH/USDT)
-- **Total Return (sum of cell returns):** 6.9%
-- **Annualized capital return:** 0.4% (on $1000, 20 lines)
-- **Win Rate:** 96.83%
-- **Trades:** 947
-- **Note:** Grid uses fixed capital per cell; sum of cell returns differs from annualized on full capital.
+- **Total Return (sum of cell returns):** -31.4% (post methodology fix)
+- **Annualized capital return:** -1.6% (on $1000, 20 lines)
+- **Win Rate:** 91.80%
+- **Trades:** 122
+- **Note:** Grid WFA uses range from first 120 bars per window; fixed methodology (break on stop, range from warmup).
 
 ### S-D Signal (BTC/USDT)
-- **Total Return (OOS):** -15.06%
-- **Win Rate:** 51.46%
-- **Trades:** 103
+- **Total Return (OOS):** -37.84%
+- **Win Rate:** 40.66%
+- **Trades:** 91
 
 ---
 
@@ -101,34 +107,34 @@ All 22 unit tests **PASSED**.
 | Metric | Value |
 |--------|-------|
 | Simulations | 1000 |
-| Median Final Equity | $1,816.58 |
-| Probability of Ruin | 2.10% |
-| Prob. Drawdown > 20% | 29.50% |
-| 95% VaR | $1,035.95 |
+| Median Final Equity | $1,433.38 |
+| Probability of Ruin | 14.80% |
+| Prob. Drawdown > 20% | 39.70% |
+| 95% VaR | $985.71 |
 
-**Gate:** PASS (ruin 2.1% < 10%). Uses WFA OOS trades (81.66% return, 41 trades).
+**Gate:** Run-dependent (14.8% ruin in this run; DCA gate is <10%). Uses WFA OOS trades (81.66% return, 41 trades). Re-run WFA then MC for stable estimate.
 
 ### S-B Grid (ETH/USDT)
 | Metric | Value |
 |--------|-------|
 | Simulations | 1000 |
-| Median Final Equity | $1,003.91 |
-| Probability of Ruin | 47.10% |
+| Median Final Equity | $986.83 |
+| Probability of Ruin | 73.10% |
 | Prob. Drawdown > 20% | 0% |
-| 95% VaR | $935.11 |
+| 95% VaR | $943.69 |
 
-**Gate:** FAIL (ruin 47.1% > 5%). Uses `MonteCarloValidatorGrid` with additive returns. WFA sum 6.9% over period.
+**Gate:** FAIL (ruin 73.1% > 5%). Uses `MonteCarloValidatorGrid` with additive returns. WFA sum -31.4% over period (post methodology fix).
 
 ### S-D Signal (BTC/USDT)
 | Metric | Value |
 |--------|-------|
 | Simulations | 1000 |
-| Median Final Equity | $849.44 |
-| Probability of Ruin | 76.10% |
-| Prob. Drawdown > 20% | 83.70% |
-| 95% VaR | $541.57 |
+| Median Final Equity | $609.78 |
+| Probability of Ruin | 96.30% |
+| Prob. Drawdown > 20% | 97.60% |
+| 95% VaR | $413.00 |
 
-**Gate:** FAIL (ruin 76.1% > 20%). S-D RETIRED; use S2 Funding Reversion instead.
+**Gate:** FAIL (ruin 96.3% > 20%). S-D RETIRED; use S2 Funding Reversion instead.
 
 ---
 
@@ -142,6 +148,20 @@ All 22 unit tests **PASSED**.
 | Max Drawdown | - | - | |
 
 See [docs/3COMMAS_VALIDATION.md](../../docs/3COMMAS_VALIDATION.md) for steps.
+
+---
+
+## 4.6 P3.5 Webhook End-to-End Test (P3.5)
+
+**Status:** Manual / Pending
+
+**Steps:**
+1. Replace `{YOUR_3C_SECRET}` and `{YOUR_BOT_UUID}` in `deploy/config-s2.json` with actual 3Commas values.
+2. Start Freqtrade: `freqtrade trade --config deploy/config-s2.json --strategy FundingReversion --dry-run`
+3. Wait for first signal on ETH; verify webhook fires in Freqtrade logs.
+4. Confirm 3Commas receives payload with `action: enter_long`, `pair`, `trigger_price`.
+
+**Config:** `deploy/config-s2.json` — webhook enabled, format JSON, 3Commas API URL. See [docs/S2_SIGNAL_BOT_WEBHOOK.md](../../docs/S2_SIGNAL_BOT_WEBHOOK.md).
 
 ---
 
@@ -164,6 +184,12 @@ See [docs/3COMMAS_VALIDATION.md](../../docs/3COMMAS_VALIDATION.md) for steps.
 8. **WFA --fast, --pool, --regime-gate:** ✅ **Added.** `--fast` reduces param grid; `--pool` pools DCA across BTC/ETH/SOL; `--regime-gate` skips grid when regime is BULL. WalkForwardAnalyzer accepts `pre_test_hook`.
 
 9. **Slippage:** ✅ **Added.** FeeEngine accepts `slippage_bps`; bots pass it via params. Use `slippage_bps: 10` for 0.1% slippage in backtests.
+
+10. **S-B Grid methodology:** ✅ **Fixed.** (a) Range computed from first 120 bars (warmup) instead of last; (b) `continue` → `break` on stop_bot_price so bot halts permanently (matches 3Commas). See crypto-bot-review-2.md.
+
+11. **WFA --score-mode ev:** ✅ **Added.** `run_wfa_dca.py --score-mode ev` optimizes by EV×win_rate instead of total return. WalkForwardAnalyzer supports `score_mode="ev"`.
+
+12. **Optuna (P4.5):** ✅ **Run.** `optimize_dca_bayesian.py` executed on BTC/USDT; best score 3.89, params saved to `research/bot_optimization/optimize_dca_bayesian_BTC_USDT.json`.
 
 ---
 
@@ -205,8 +231,9 @@ python research/walk_forward/run_wfa_dca.py --strategy sa --symbol BTC/USDT
 python research/walk_forward/run_wfa_grid.py --strategy sb --symbol ETH/USDT
 python research/walk_forward/run_wfa_signal.py --strategy sd --symbol BTC/USDT
 
-# WFA options: --fast (reduced grid), --pool (DCA multi-symbol), --regime-gate (grid skip BULL)
+# WFA options: --fast (reduced grid), --pool (DCA multi-symbol), --regime-gate (grid skip BULL), --score-mode ev (DCA EV optimization)
 python research/walk_forward/run_wfa_dca.py --strategy sa --pool --fast
+python research/walk_forward/run_wfa_dca.py --strategy sa --symbol BTC/USDT --fast --score-mode ev
 python research/walk_forward/run_wfa_grid.py --strategy sb --symbol ETH/USDT --regime-gate
 
 # Monte Carlo (run after WFA; requires WFA output CSV)

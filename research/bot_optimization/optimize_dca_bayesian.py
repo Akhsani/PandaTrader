@@ -109,9 +109,16 @@ def main():
     print(f"\nBest params: {best}")
     print(f"Best score: {study.best_value:.4f}")
 
-    # Run once with best params to get full metrics
+    # Run once with best params to get full metrics (map Optuna names to DCA bot names)
     full_params = {
-        **best,
+        "base_order_volume": best["base_order_volume"],
+        "safety_order_volume": best["safety_order_volume"],
+        "max_safety_orders": best["max_safety_orders"],
+        "safety_order_step_percentage": best["safety_order_step"],
+        "martingale_volume_coefficient": best["mv_coeff"],
+        "martingale_step_coefficient": best["ms_coeff"],
+        "take_profit_percentage": best["tp_pct"],
+        "stop_loss_percentage": best["sl_pct"],
         "trailing_take_profit": False,
         "max_active_deals": 1,
         "cooldown_between_deals": 0,

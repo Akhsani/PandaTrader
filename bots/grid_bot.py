@@ -97,7 +97,7 @@ class GridBotSimulator:
                         self.closed_deals.append({"pnl": loss / cost_usdt, "pnl_usdt": loss, "exit_reason": "stop"})
                     open_buys = {}
                     self.equity_curve.append(initial_capital + total_profit)
-                    continue
+                    break  # Bot stops permanently after stop event (matches 3Commas behavior)
 
             # Trailing Up: extend upper when close > upper
             if self.trailing_up and close > upper:

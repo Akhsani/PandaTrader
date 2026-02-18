@@ -1,0 +1,13 @@
+{
+  "best_params": {
+    "base_order_volume": 23.849673194066703,
+    "safety_order_volume": 79.5968122608143,
+    "max_safety_orders": 7,
+    "safety_order_step": 0.9062526269665228,
+    "mv_coeff": 2.22916881088611,
+    "ms_coeff": 1.5756879862474675,
+    "tp_pct": 3.990288557748609,
+    "sl_pct": 23.203938472982383
+  },
+  "best_score": 3.886298269190861
+}

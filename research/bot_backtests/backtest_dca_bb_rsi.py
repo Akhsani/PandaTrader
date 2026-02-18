@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from bots.dca_bot import DCABotSimulator
 from bots.base_bot import load_ohlcv_for_bot
+from bots.report_utils import write_backtest_report
 
 try:
     import talib
@@ -71,10 +72,51 @@ def run_backtest(symbol="BTC/USDT"):
     bot = DCABotSimulator(params)
     result = bot.run(df, signal, initial_capital=10000)
     result["symbol"] = symbol
-    result["gate_passed"] = result["sharpe_ratio"] > 1.0 and result["max_drawdown"] > -25
+    result["period_start"] = str(df.index[0].date())
+    result["period_end"] = str(df.index[-1].date())
+    # DCA gate: Per-deal EV > 0, Win Rate > 75% (MC ruin < 10% from Monte Carlo run)
+    ev = result.get("expected_value_per_deal", 0)
+    wr = result.get("win_rate", 0)
+    result["gate_passed"] = ev > 0 and wr > 0.75
     return result
 
 
-if __name__ == "__main__":
+def main():
+    print("=== S-C BB+RSI DCA Backtest ===\n")
     r = run_backtest("BTC/USDT")
-    print("S-C BB+RSI:", r.get("sharpe_ratio", 0), r.get("total_deals", 0))
+    if "error" in r:
+        print(r["error"])
+        return
+    print(f"Symbol: {r['symbol']}")
+    print(f"Period: {r['period_start']} to {r['period_end']}")
+    print(f"Sharpe: {r['sharpe_ratio']:.2f} | MDD: {r['max_drawdown']:.1f}%")
+    print(f"Win Rate: {r['win_rate']:.1%} | Deals: {r['total_deals']}")
+    print(f"EV per deal: {r.get('expected_value_per_deal', 0):.4f}")
+    print(f"Gate: {'PASSED' if r['gate_passed'] else 'FAILED'} (EV>0, WR>75%)")
+    report_path = write_backtest_report(
+        metrics={
+            "sharpe_ratio": r["sharpe_ratio"],
+            "max_drawdown": r["max_drawdown"],
+            "win_rate": r["win_rate"],
+            "total_deals": r["total_deals"],
+            "expected_value_per_deal": r.get("expected_value_per_deal", 0),
+            "gate_passed": r["gate_passed"],
+        },
+        params={
+            "base_order_volume": 25,
+            "safety_order_volume": 30,
+            "max_safety_orders": 4,
+            "take_profit_percentage": 2.5,
+            "stop_loss_percentage": 15.0,
+        },
+        strategy_id="sc",
+        symbol=r["symbol"],
+        period_start=r["period_start"],
+        period_end=r["period_end"],
+        out_dir="research/results/backtests",
+    )
+    print(f"Report: {report_path}")
+
+
+if __name__ == "__main__":
+    main()

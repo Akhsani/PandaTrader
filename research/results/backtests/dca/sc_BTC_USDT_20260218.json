@@ -1,0 +1,22 @@
+{
+  "strategy_id": "sc",
+  "symbol": "BTC/USDT",
+  "period_start": "2024-02-18",
+  "period_end": "2026-02-17",
+  "params": {
+    "base_order_volume": 25,
+    "safety_order_volume": 30,
+    "max_safety_orders": 4,
+    "take_profit_percentage": 2.5,
+    "stop_loss_percentage": 15.0
+  },
+  "metrics": {
+    "sharpe_ratio": -0.2133507352763696,
+    "max_drawdown": -2.3784265863192675,
+    "win_rate": 0.9380530973451328,
+    "total_deals": 113,
+    "expected_value_per_deal": 0.013145132743362745,
+    "gate_passed": true
+  },
+  "gate_passed": true
+}

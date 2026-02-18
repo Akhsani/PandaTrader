@@ -36,16 +36,10 @@ def run_backtest(
     if df is None or len(df) < 100:
         return {"error": "Insufficient data"}
 
-    # Range: ±range_pct around recent price (or 120-day high/low)
-    recent = df["close"].iloc[-1]
-    roll_high = df["high"].rolling(120).max().dropna()
-    roll_low = df["low"].rolling(120).min().dropna()
-    if len(roll_high) > 0 and len(roll_low) > 0:
-        upper = float(roll_high.iloc[-1])
-        lower = float(roll_low.iloc[-1])
-    else:
-        upper = recent * (1 + range_pct)
-        lower = recent * (1 - range_pct)
+    # Range: use first 120 bars (warmup) — simulates what you'd set at bot launch
+    warmup = df.iloc[:120]
+    upper = float(warmup["high"].max())
+    lower = float(warmup["low"].min())
 
     # stop_bot_price: 10% below lower — realistic crash protection
     stop_bot_price = lower * 0.90

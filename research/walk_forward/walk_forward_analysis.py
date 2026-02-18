@@ -10,7 +10,8 @@ class WalkForwardAnalyzer:
                  train_window_days=180, test_window_days=30, score_mode="compound",
                  pre_test_hook=None):
         """
-        score_mode: "compound" for DCA/Signal (equity compounds), "sum" for Grid (fixed capital per cell).
+        score_mode: "compound" for DCA/Signal (equity compounds), "sum" for Grid (fixed capital per cell),
+        "ev" for DCA EV-based optimization (ev_per_deal * win_rate).
         pre_test_hook: optional (train_price, test_price, best_params) -> bool. If False, skip test window.
         """
         self.strategy = strategy_func
@@ -60,21 +61,24 @@ class WalkForwardAnalyzer:
             if results is None or results.empty:
                 score = -np.inf
             else:
-                if self.score_mode == "sum":
+                if self.score_mode == "ev":
+                    ev_per_deal = results['pnl'].mean()
+                    win_rate = (results['pnl'] > 0).mean()
+                    score = float(ev_per_deal * win_rate * 100) if win_rate > 0 else -np.inf
+                elif self.score_mode == "sum":
                     total_return = results['pnl'].sum()
                     cum_ret = 1 + results['pnl'].cumsum()
+                    peak = cum_ret.cummax()
+                    denom = np.maximum(peak.values, 1e-10)
+                    max_dd = ((cum_ret.values - peak.values) / denom).min()
+                    score = -1.0 if max_dd < -0.30 else total_return
                 else:
                     total_return = (results['pnl'] + 1).prod() - 1
                     cum_ret = (results['pnl'] + 1).cumprod()
-
-                peak = cum_ret.cummax()
-                denom = np.maximum(peak.values, 1e-10)
-                max_dd = ((cum_ret.values - peak.values) / denom).min()
-
-                if max_dd < -0.30:
-                    score = -1.0
-                else:
-                    score = total_return
+                    peak = cum_ret.cummax()
+                    denom = np.maximum(peak.values, 1e-10)
+                    max_dd = ((cum_ret.values - peak.values) / denom).min()
+                    score = -1.0 if max_dd < -0.30 else total_return
             
             if score > best_score:
                 best_score = score
@@ -98,7 +102,8 @@ class WalkForwardAnalyzer:
                 print("    No profitable params found in train.")
                 continue
                 
-            print(f"    Best Params: {best_params} (Score: {train_score:.2%})")
+            score_fmt = f"{train_score:.2f}" if self.score_mode == "ev" else f"{train_score:.2%}"
+            print(f"    Best Params: {best_params} (Score: {score_fmt})")
             
             # 2. Test
             mask_test = (self.price_df.index >= train_end) & (self.price_df.index < test_end)
@@ -121,6 +126,8 @@ class WalkForwardAnalyzer:
             if test_results is not None and not test_results.empty:
                 if self.score_mode == "sum":
                     ret = test_results['pnl'].sum()
+                elif self.score_mode == "ev":
+                    ret = (test_results['pnl'] + 1).prod() - 1  # OOS return for display
                 else:
                     ret = (test_results['pnl'] + 1).prod() - 1
                 print(f"    Test Return: {ret:.2%}")
