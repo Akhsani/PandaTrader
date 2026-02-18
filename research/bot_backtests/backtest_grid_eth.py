@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from bots.grid_bot import GridBotSimulator
 from bots.base_bot import load_ohlcv_for_bot
+from bots.report_utils import write_backtest_report
 
 
 def load_data(symbol: str, days: int = 730):
@@ -46,6 +47,8 @@ def run_backtest(
         upper = recent * (1 + range_pct)
         lower = recent * (1 - range_pct)
 
+    # stop_bot_price: 10% below lower — realistic crash protection
+    stop_bot_price = lower * 0.90
     params = {
         "upper_price": upper,
         "lower_price": lower,
@@ -54,6 +57,7 @@ def run_backtest(
         "grid_type": "geometric",
         "trailing_up": False,
         "expansion_down": False,
+        "stop_bot_price": stop_bot_price,
         "fee": 0.001,
     }
 
@@ -77,6 +81,22 @@ def main():
     print(f"Sharpe: {r['sharpe_ratio']:.2f} | MDD: {r['max_drawdown']:.1f}%")
     print(f"Win Rate: {r['win_rate']:.1%} | Deals: {r['total_deals']}")
     print(f"Gate: {'PASSED' if r['gate_passed'] else 'FAILED'}")
+    report_path = write_backtest_report(
+        metrics={
+            "sharpe_ratio": r["sharpe_ratio"],
+            "max_drawdown": r["max_drawdown"],
+            "win_rate": r["win_rate"],
+            "total_deals": r["total_deals"],
+            "gate_passed": r["gate_passed"],
+        },
+        params=r.get("optimized_params", {}),
+        strategy_id="sb",
+        symbol=r["symbol"],
+        period_start=r["period_start"],
+        period_end=r["period_end"],
+        out_dir="research/results/backtests",
+    )
+    print(f"Report: {report_path}")
 
 
 if __name__ == "__main__":

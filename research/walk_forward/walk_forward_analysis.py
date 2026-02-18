@@ -6,14 +6,21 @@ from datetime import timedelta
 import matplotlib.pyplot as plt
 
 class WalkForwardAnalyzer:
-    def __init__(self, strategy_func, param_grid, price_df, funding_df=None, 
-                 train_window_days=180, test_window_days=30):
+    def __init__(self, strategy_func, param_grid, price_df, funding_df=None,
+                 train_window_days=180, test_window_days=30, score_mode="compound",
+                 pre_test_hook=None):
+        """
+        score_mode: "compound" for DCA/Signal (equity compounds), "sum" for Grid (fixed capital per cell).
+        pre_test_hook: optional (train_price, test_price, best_params) -> bool. If False, skip test window.
+        """
         self.strategy = strategy_func
         self.param_grid = param_grid
         self.price_df = price_df
         self.funding_df = funding_df
         self.train_window = timedelta(days=train_window_days)
         self.test_window = timedelta(days=test_window_days)
+        self.score_mode = score_mode
+        self.pre_test_hook = pre_test_hook
         
     def generate_windows(self):
         """Generator for (train_start, train_end, test_end)"""
@@ -53,15 +60,18 @@ class WalkForwardAnalyzer:
             if results is None or results.empty:
                 score = -np.inf
             else:
-                # Scoring metric: Sharpe * log(1+Return) ? 
-                # Simple: Total Return if Drawdown < 20%
-                total_return = (results['pnl'] + 1).prod() - 1
-                
-                # Drawdown penalty
-                cum_ret = (results['pnl'] + 1).cumprod()
-                max_dd = ((cum_ret - cum_ret.cummax()) / cum_ret.cummax()).min()
-                
-                if max_dd < -0.30: # Penalize heavy DD
+                if self.score_mode == "sum":
+                    total_return = results['pnl'].sum()
+                    cum_ret = 1 + results['pnl'].cumsum()
+                else:
+                    total_return = (results['pnl'] + 1).prod() - 1
+                    cum_ret = (results['pnl'] + 1).cumprod()
+
+                peak = cum_ret.cummax()
+                denom = np.maximum(peak.values, 1e-10)
+                max_dd = ((cum_ret.values - peak.values) / denom).min()
+
+                if max_dd < -0.30:
                     score = -1.0
                 else:
                     score = total_return
@@ -93,7 +103,14 @@ class WalkForwardAnalyzer:
             # 2. Test
             mask_test = (self.price_df.index >= train_end) & (self.price_df.index < test_end)
             test_price = self.price_df.loc[mask_test]
-            
+            mask_train = (self.price_df.index >= train_start) & (self.price_df.index < train_end)
+            train_price = self.price_df.loc[mask_train]
+
+            if self.pre_test_hook is not None:
+                if not self.pre_test_hook(train_price, test_price, best_params):
+                    print(f"    Test skipped (pre_test_hook)")
+                    continue
+
             test_funding = None
             if self.funding_df is not None:
                 mask_tf = (self.funding_df.index >= train_end) & (self.funding_df.index < test_end)
@@ -102,8 +119,10 @@ class WalkForwardAnalyzer:
             test_results = self.strategy(test_price, test_funding, **best_params)
             
             if test_results is not None and not test_results.empty:
-                pnl = test_results['pnl'].sum() # Approximation for log returns, or exact calc
-                ret = (test_results['pnl'] + 1).prod() - 1
+                if self.score_mode == "sum":
+                    ret = test_results['pnl'].sum()
+                else:
+                    ret = (test_results['pnl'] + 1).prod() - 1
                 print(f"    Test Return: {ret:.2%}")
                 
                 # Store trades

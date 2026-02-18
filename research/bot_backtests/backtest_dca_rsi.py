@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from bots.dca_bot import DCABotSimulator
 from bots.base_bot import load_ohlcv_for_bot
+from bots.report_utils import write_backtest_report
 
 try:
     import talib
@@ -68,6 +69,7 @@ def run_backtest(symbol: str, initial_capital: float = 10000.0) -> dict:
         "martingale_volume_coefficient": 2.0,
         "martingale_step_coefficient": 1.5,
         "take_profit_percentage": 2.5,
+        "stop_loss_percentage": 15.0,  # Realistic: cut loss if avg price drops 15%
         "trailing_take_profit": False,
         "max_active_deals": 1,
         "cooldown_between_deals": 0,
@@ -107,6 +109,22 @@ def main():
                 print(f"  Gate: PASSED (Sharpe>1.0, MDD<25%)")
             else:
                 print(f"  Gate: FAILED")
+            report_path = write_backtest_report(
+                metrics={
+                    "sharpe_ratio": r["sharpe_ratio"],
+                    "max_drawdown": r["max_drawdown"],
+                    "win_rate": r["win_rate"],
+                    "total_deals": r["total_deals"],
+                    "gate_passed": r["gate_passed"],
+                },
+                params=r.get("optimized_params", {}),
+                strategy_id="sa",
+                symbol=sym,
+                period_start=r["period_start"],
+                period_end=r["period_end"],
+                out_dir="research/results/backtests",
+            )
+            print(f"  Report: {report_path}")
             print()
         except Exception as e:
             print(f"{sym}: Error - {e}\n")

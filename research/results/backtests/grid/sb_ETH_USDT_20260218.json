@@ -1,0 +1,26 @@
+{
+  "strategy_id": "sb",
+  "symbol": "ETH/USDT",
+  "period_start": "2024-02-18",
+  "period_end": "2026-02-17",
+  "params": {
+    "upper_price": 2107.67,
+    "lower_price": 1897.24,
+    "investment_amount": 1000.0,
+    "grid_lines_count": 20,
+    "grid_type": "geometric",
+    "trailing_up": false,
+    "expansion_down": false,
+    "stop_bot_price": 1707.516,
+    "fee": 0.001,
+    "leverage": 1
+  },
+  "metrics": {
+    "sharpe_ratio": -0.05612832094642898,
+    "max_drawdown": -13.750534099479239,
+    "win_rate": 0.9743589743589743,
+    "total_deals": 780,
+    "gate_passed": false
+  },
+  "gate_passed": false
+}

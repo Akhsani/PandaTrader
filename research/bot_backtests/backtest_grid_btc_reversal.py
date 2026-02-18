@@ -29,6 +29,7 @@ def run_backtest(symbol="BTC/USDT"):
         return {"error": "Insufficient data"}
     roll_high = df["high"].rolling(120).max().iloc[-1]
     roll_low = df["low"].rolling(120).min().iloc[-1]
+    stop_bot_price = roll_low * 0.90
     params = {
         "upper_price": roll_high,
         "lower_price": roll_low,
@@ -36,6 +37,7 @@ def run_backtest(symbol="BTC/USDT"):
         "grid_lines_count": 20,
         "grid_type": "geometric",
         "trailing_up": False,
+        "stop_bot_price": stop_bot_price,
         "leverage": 2,
         "fee": 0.0005,
     }

@@ -33,7 +33,8 @@ class DCABotSimulator:
         self.cooldown_between_deals = int(params.get("cooldown_between_deals", 0))
         # --- Fees ---
         self.fee = float(params.get("fee", 0.001))
-        self.fee_engine = FeeEngine(self.fee)
+        self.slippage_bps = float(params.get("slippage_bps", 0.0))
+        self.fee_engine = FeeEngine(self.fee, slippage_bps=self.slippage_bps)
         # --- State ---
         self.active_deals = []
         self.closed_deals = []

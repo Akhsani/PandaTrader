@@ -11,18 +11,18 @@
 - **Pair**: ETH/USDT
 - **Data**: 1h OHLCV
 
-## 3. Results
+## 3. Results (Realistic — with stop_bot_price 10% below lower)
 
 | Metric | Value |
 |--------|-------|
-| Sharpe | 12.18 |
-| MDD | 0% |
-| Win Rate | 100% |
-| Deals | 773 |
-| Gate | PASS |
+| Sharpe | -0.06 |
+| MDD | -13.8% |
+| Win Rate | 97.4% |
+| Deals | 780 |
+| Gate | FAIL |
 
-**WFA (ETH):** 6074 trades, 74.15% win rate. Total return = sum of cell returns (no compounding).  
-**Monte Carlo:** Current MC compounds; results inflated. Grid-specific MC needed.
+**WFA (ETH):** 3859 trades, 58.95% win rate. Total return 991.5% (sum of cell returns).  
+**Monte Carlo:** Median equity ~$1,496, 0% ruin. Gate PASS.
 
 **Commands:**
 - Backtest: `python research/bot_backtests/backtest_grid_eth.py`
@@ -30,7 +30,7 @@
 - MC: `python research/monte_carlo/run_mc_grid.py --strategy sb --symbol ETH/USDT`
 
 ## 4. Conclusion
-**Validated (backtest).** WFA completed. MC needs grid-specific logic before full validation.
+**Realistic.** stop_bot_price 10% below lower added; win rate 97.4% (was 100%). Backtest gate fails; MC passes. Re-optimize for gate if needed.
 
 ## 5. 3Commas Export
 Use `bots.export_config.export_to_3commas(optimized_params, 'grid')`.

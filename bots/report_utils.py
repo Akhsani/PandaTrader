@@ -3,9 +3,29 @@ Report generation helpers for bot backtests, WFA, and Monte Carlo.
 """
 import os
 import json
+import numpy as np
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any
 import pandas as pd
+
+
+def _json_safe(obj: Any) -> Any:
+    """Convert numpy/pandas types to JSON-serializable Python types."""
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    if isinstance(obj, (np.bool_, bool)):
+        return bool(obj)
+    if isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    if isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if pd.isna(obj):
+        return None
+    return obj
 
 
 def _ensure_dir(path: str):
@@ -35,9 +55,9 @@ def write_backtest_report(
         "symbol": symbol,
         "period_start": period_start,
         "period_end": period_end,
-        "params": params,
-        "metrics": metrics,
-        "gate_passed": metrics.get("gate_passed", False),
+        "params": _json_safe(params),
+        "metrics": _json_safe(metrics),
+        "gate_passed": bool(metrics.get("gate_passed", False)),
     }
     with open(path, "w") as f:
         json.dump(payload, f, indent=2)

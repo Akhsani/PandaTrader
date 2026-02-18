@@ -51,6 +51,7 @@ def dca_strategy_sa(price_df: pd.DataFrame, funding_df=None, **params) -> pd.Dat
         "martingale_volume_coefficient": params.get("martingale_volume_coefficient", 2.0),
         "martingale_step_coefficient": params.get("martingale_step_coefficient", 1.5),
         "take_profit_percentage": params.get("take_profit_percentage", 2.5),
+        "stop_loss_percentage": params.get("stop_loss_percentage", 15.0),
         "trailing_take_profit": params.get("trailing_take_profit", False),
         "max_active_deals": 1,
         "cooldown_between_deals": 0,
@@ -82,48 +83,80 @@ def main():
     parser.add_argument("--symbol", default="BTC/USDT")
     parser.add_argument("--train", type=int, default=365)
     parser.add_argument("--test", type=int, default=90)
+    parser.add_argument("--fast", action="store_true", help="Reduced param grid for faster runs")
+    parser.add_argument("--pool", action="store_true", help="Run WFA on BTC, ETH, SOL and pool OOS trades")
     args = parser.parse_args()
 
     strategy_map = {"sa": dca_strategy_sa}
     strategy_func = strategy_map.get(args.strategy, dca_strategy_sa)
 
-    # Reduced grid for faster WFA (full grid in optimize_dca_params.py)
-    param_grid = {
-        "base_order_volume": [25],
-        "safety_order_volume": [30],
-        "max_safety_orders": [4],
-        "safety_order_step_percentage": [0.75],
-        "martingale_volume_coefficient": [2.0],
-        "martingale_step_coefficient": [1.5],
-        "take_profit_percentage": [2.0, 2.5],
-    }
+    if args.fast:
+        param_grid = {
+            "base_order_volume": [25],
+            "safety_order_volume": [30],
+            "max_safety_orders": [4],
+            "safety_order_step_percentage": [0.75],
+            "martingale_volume_coefficient": [2.0],
+            "martingale_step_coefficient": [1.5],
+            "take_profit_percentage": [2.5],
+            "stop_loss_percentage": [15.0],
+        }
+    else:
+        param_grid = {
+            "base_order_volume": [25],
+            "safety_order_volume": [30],
+            "max_safety_orders": [4],
+            "safety_order_step_percentage": [0.75],
+            "martingale_volume_coefficient": [2.0],
+            "martingale_step_coefficient": [1.5],
+            "take_profit_percentage": [2.0, 2.5],
+            "stop_loss_percentage": [12.0, 15.0, 18.0],
+        }
 
-    print(f"Loading {args.symbol}...")
-    price_df = load_data(args.symbol)
-    if price_df is None or len(price_df) < 500:
-        print("Insufficient data.")
-        return
+    symbols = ["BTC/USDT", "ETH/USDT", "SOL/USDT"] if args.pool else [args.symbol]
+    all_results = []
+    for sym in symbols:
+        price_df = load_data(sym)
+        if price_df is None or len(price_df) < 500:
+            print(f"Insufficient data for {sym}.")
+            continue
+        print(f"\n--- WFA {sym} ---")
+        analyzer = WalkForwardAnalyzer(
+            strategy_func,
+            param_grid,
+            price_df,
+            funding_df=None,
+            train_window_days=args.train,
+            test_window_days=args.test,
+        )
+        res = analyzer.run()
+        if not res.empty:
+            res["symbol"] = sym
+            all_results.append(res)
 
-    analyzer = WalkForwardAnalyzer(
-        strategy_func,
-        param_grid,
-        price_df,
-        funding_df=None,
-        train_window_days=args.train,
-        test_window_days=args.test,
-    )
-    results = analyzer.run()
+    if args.pool and all_results:
+        results = pd.concat(all_results, ignore_index=True)
+        results = results.sort_values("exit_time")
+    elif all_results:
+        results = all_results[0]
+    else:
+        results = pd.DataFrame()
 
     if not results.empty:
         total_return = (results["pnl"] + 1).prod() - 1
         win_rate = (results["pnl"] > 0).mean()
         print("\n=== WFA Result (DCA) ===")
-        print(f"Strategy: {args.strategy} | Symbol: {args.symbol}")
+        print(f"Strategy: {args.strategy} | Symbol(s): {symbols}")
         print(f"Total Return: {total_return:.2%}")
         print(f"Win Rate: {win_rate:.2%}")
         print(f"Trades: {len(results)}")
+        if "symbol" in results.columns:
+            print(f"By symbol: {results.groupby('symbol').size().to_dict()}")
         os.makedirs("research/walk_forward/results", exist_ok=True)
-        out = f"research/walk_forward/results/wfa_dca_{args.strategy}_{args.symbol.replace('/', '_')}.csv"
+        if args.pool:
+            out = f"research/walk_forward/results/wfa_dca_{args.strategy}_pooled.csv"
+        else:
+            out = f"research/walk_forward/results/wfa_dca_{args.strategy}_{args.symbol.replace('/', '_')}.csv"
         results.to_csv(out)
         print(f"Saved to {out}")
     else:

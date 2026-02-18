@@ -1,0 +1,29 @@
+{
+  "strategy_id": "sa",
+  "symbol": "ETH/USDT",
+  "period_start": "2024-02-18",
+  "period_end": "2026-02-17",
+  "params": {
+    "base_order_volume": 25.0,
+    "safety_order_volume": 30.0,
+    "max_safety_orders": 4,
+    "safety_order_step_percentage": 0.75,
+    "martingale_volume_coefficient": 2.0,
+    "martingale_step_coefficient": 1.5,
+    "take_profit_percentage": 2.5,
+    "trailing_take_profit": false,
+    "trailing_take_profit_deviation": 0.5,
+    "stop_loss_percentage": 15.0,
+    "max_active_deals": 1,
+    "cooldown_between_deals": 0,
+    "fee": 0.001
+  },
+  "metrics": {
+    "sharpe_ratio": -0.9487548990538465,
+    "max_drawdown": -3.863706257187309,
+    "win_rate": 0.9051724137931034,
+    "total_deals": 116,
+    "gate_passed": false
+  },
+  "gate_passed": false
+}

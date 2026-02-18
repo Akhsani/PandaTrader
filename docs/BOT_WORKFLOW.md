@@ -34,9 +34,19 @@ python research/bot_optimization/optimize_dca_params.py --symbol BTC/USDT --top 
 ## Step 4: Walk-Forward Analysis
 
 ```bash
+# Default (full param grid)
 python research/walk_forward/run_wfa_dca.py --strategy sa --symbol BTC/USDT
 python research/walk_forward/run_wfa_grid.py --strategy sb --symbol ETH/USDT
 python research/walk_forward/run_wfa_signal.py --strategy sd --symbol BTC/USDT
+
+# Faster: --fast for reduced param grid
+python research/walk_forward/run_wfa_dca.py --strategy sa --symbol BTC/USDT --fast
+
+# Multi-symbol: --pool for DCA (BTC, ETH, SOL)
+python research/walk_forward/run_wfa_dca.py --strategy sa --pool
+
+# Regime gating: --regime-gate for grid (skip BULL regime)
+python research/walk_forward/run_wfa_grid.py --strategy sb --symbol ETH/USDT --regime-gate
 ```
 
 **Gate:** OOS Sharpe > 0.8, degradation < 40%.
@@ -77,7 +87,11 @@ config = export_to_3commas(optimized_params, bot_type="dca")
 ## Unit Tests
 
 ```bash
-pytest tests/test_dca_bot.py tests/test_grid_bot.py tests/test_signal_bot.py -v
+pytest tests/test_dca_bot.py tests/test_grid_bot.py tests/test_signal_bot.py tests/test_base_bot.py tests/test_monte_carlo.py tests/test_walk_forward.py -v
 ```
 
-All 14 tests must pass before deploying changes.
+All tests must pass before deploying changes.
+
+## 3Commas Fidelity Check
+
+See [3COMMAS_VALIDATION.md](3COMMAS_VALIDATION.md) for comparing results with 3Commas backtester.

@@ -15,6 +15,22 @@ from research.walk_forward.walk_forward_analysis import WalkForwardAnalyzer
 from bots.grid_bot import GridBotSimulator
 
 
+def _make_regime_gate_hook():
+    """Return pre_test_hook that skips grid when test window regime is BULL (strong trend)."""
+    def hook(train_price, test_price, best_params):
+        try:
+            from utils.regime_detector import CryptoRegimeDetector
+            det = CryptoRegimeDetector(n_regimes=4)
+            det.fit(train_price)
+            regime = det.current_regime(test_price)
+            if regime == "BULL":
+                return False  # Skip grid in strong trend
+        except Exception as e:
+            print(f"    Regime gate warning: {e}, proceeding")
+        return True
+    return hook
+
+
 def grid_strategy_sb(price_df: pd.DataFrame, funding_df=None, **params) -> pd.DataFrame:
     """S-B: Geometric grid in range."""
     if price_df is None or len(price_df) < 200:
@@ -27,6 +43,7 @@ def grid_strategy_sb(price_df: pd.DataFrame, funding_df=None, **params) -> pd.Da
     lower = roll_low
     if upper <= lower:
         return pd.DataFrame()
+    stop_bot_price = lower * 0.90  # 10% below lower — crash protection
     bot_params = {
         "upper_price": upper,
         "lower_price": lower,
@@ -34,6 +51,7 @@ def grid_strategy_sb(price_df: pd.DataFrame, funding_df=None, **params) -> pd.Da
         "grid_lines_count": params.get("grid_lines_count", 20),
         "grid_type": "geometric",
         "trailing_up": False,
+        "stop_bot_price": stop_bot_price,
         "fee": 0.001,
     }
     bot = GridBotSimulator(bot_params)
@@ -61,15 +79,25 @@ def main():
     parser.add_argument("--symbol", default="ETH/USDT")
     parser.add_argument("--train", type=int, default=365)
     parser.add_argument("--test", type=int, default=90)
+    parser.add_argument("--fast", action="store_true", help="Reduced param grid for faster runs")
+    parser.add_argument("--regime-gate", action="store_true",
+                        help="Disable grid when regime is BULL (strong trend); uses CryptoRegimeDetector")
     args = parser.parse_args()
 
     strategy_map = {"sb": grid_strategy_sb}
     strategy_func = strategy_map.get(args.strategy, grid_strategy_sb)
 
-    param_grid = {
-        "investment_amount": [500, 1000],
-        "grid_lines_count": [10, 15, 20, 30],
-    }
+    if args.fast:
+        param_grid = {"investment_amount": [1000], "grid_lines_count": [20]}
+    else:
+        param_grid = {
+            "investment_amount": [500, 1000],
+            "grid_lines_count": [10, 15, 20, 30],
+        }
+
+    pre_test_hook = None
+    if args.regime_gate:
+        pre_test_hook = _make_regime_gate_hook()
 
     print(f"Loading {args.symbol}...")
     price_df = load_data(args.symbol)
@@ -84,6 +112,8 @@ def main():
         funding_df=None,
         train_window_days=args.train,
         test_window_days=args.test,
+        score_mode="sum",
+        pre_test_hook=pre_test_hook,
     )
     results = analyzer.run()
 

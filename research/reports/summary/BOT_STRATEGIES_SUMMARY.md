@@ -3,23 +3,25 @@
 **Last Updated:** February 2026  
 **Full Results:** [BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md](../BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md)
 
-| Strategy | Bot Type | Status | Sharpe | MDD | Deals | Gate |
-|----------|----------|--------|--------|-----|-------|------|
-| S-A RSI DCA | DCA | Validated | 3.55 avg | 0% | 141 | PASS |
-| S-B Grid ETH | Grid | Validated | 12.18 | 0% | 773 | PASS |
-| S-C BB+RSI | DCA | Tested | 4.29 | - | 67 | - |
-| S-D EMA Signal | Signal | Gate Failed | -1.05 | -0.8% | 548 | FAIL |
-| S-E Grid Reversal | Grid | Tested | 22.42 | - | 2109 | - |
+| Strategy | Bot Type | Status | Sharpe | MDD | Win Rate | Gate |
+|----------|----------|--------|--------|-----|----------|------|
+| S-A RSI DCA | DCA | Realistic | 0.26 (BTC) | -1.9% | 95.1% | FAIL |
+| S-B Grid ETH | Grid | Realistic | -0.06 | -13.8% | 97.4% | FAIL |
+| S-C BB+RSI | DCA | Tested | -0.16 | - | - | FAIL |
+| S-D EMA Signal | Signal | Gate Failed | -0.38 | -0.5% | 52.4% | FAIL |
+| S-E Grid Reversal | Grid | Tested | -0.08 | - | - | FAIL |
+
+*Realistic: DCA stop_loss 15%; Grid stop_bot 10% below lower. Win rates no longer 100%.
 
 ## WFA & Monte Carlo
 
-| Strategy | WFA OOS Return | MC Ruin Prob | MC Gate |
-|----------|----------------|--------------|---------|
-| S-A DCA (BTC) | 207.37% | 0% | PASS |
-| S-B Grid (ETH) | sum of cell returns | N/A* | - |
-| S-D Signal (BTC) | Not run (gate failed) | - | - |
+| Strategy | WFA OOS Return | WFA Win Rate | MC Ruin Prob | MC Gate |
+|----------|----------------|--------------|--------------|---------|
+| S-A DCA (BTC) | 105.52% | 93.75% | 1.50% | PASS |
+| S-B Grid (ETH) | 991.5% (sum) | 58.95% | 0% | PASS |
+| S-D Signal (BTC) | -41.73% (OOS) | - | - | - |
 
-*Grid MC uses compounding; results inflated. Needs grid-specific MC. S-E/S-M grid WFA not yet implemented in run_wfa_grid.py.
+*DCA MC: 40% prob DD>20% (realistic with SL). Grid MC: additive returns.
 
 ## How to Update
 

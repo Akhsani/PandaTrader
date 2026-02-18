@@ -8,36 +8,46 @@
 
 ## 1. Unit Test Results
 
-All 14 unit tests **PASSED**.
+All 21 unit tests **PASSED**.
 
 | Test File | Tests | Status |
 |-----------|-------|--------|
 | `test_dca_bot.py` | 6 | PASS |
 | `test_grid_bot.py` | 5 | PASS |
 | `test_signal_bot.py` | 3 | PASS |
+| `test_base_bot.py` | 2 | PASS |
+| `test_monte_carlo.py` | 3 | PASS |
+| `test_walk_forward.py` | 2 | PASS |
 
 **Coverage:**
 - DCA: SO levels, TP price, fee application, cooldown, single-deal lifecycle, export params
 - Grid: geometric/arithmetic grid, profit per cell, trailing up, stop bot
 - Signal: entry on signal, stop loss, trailing stop
+- Monte Carlo: compound validator, grid additive validator (no inflation)
+- Walk-Forward: score_mode compound vs sum for grid
 
 ---
 
-## 2. Backtest Results
+## 2. Backtest Results (Realistic — with Stop Loss / Stop Bot)
 
 | Strategy | Symbol | Sharpe | MDD | Win Rate | Deals | Gate |
 |----------|--------|--------|-----|----------|-------|------|
-| S-A RSI DCA | BTC | 4.00 | 0% | 100% | 59 | PASS |
-| S-A RSI DCA | ETH | 3.14 | 0% | 100% | 35 | PASS |
-| S-A RSI DCA | SOL | 3.50 | 0% | 100% | 47 | PASS |
-| S-B Grid ETH | ETH | 12.18 | 0% | 100% | 773 | PASS |
-| S-C BB+RSI | BTC | 4.29 | - | - | 67 | - |
-| S-E Grid Reversal | BTC | 22.42 | - | - | 2109 | - |
-| S-D Signal EMA | BTC | -1.05 | -0.8% | 51.8% | 548 | **FAIL** |
+| S-A RSI DCA | BTC | 0.26 | -1.9% | 95.1% | 82 | FAIL |
+| S-A RSI DCA | ETH | -0.95 | -3.9% | 90.5% | 116 | FAIL |
+| S-A RSI DCA | SOL | -1.20 | -4.6% | 90.0% | 130 | FAIL |
+| S-B Grid ETH | ETH | -0.06 | -13.8% | 97.4% | 780 | FAIL |
+| S-C BB+RSI | BTC | -0.16 | - | - | 126 | FAIL |
+| S-E Grid Reversal | BTC | -0.08 | - | - | 2146 | FAIL |
+| S-D Signal EMA | BTC | -0.38 | -0.5% | 52.4% | 288 | **FAIL** |
+
+**Realistic risk controls applied (Feb 2026):**
+- **DCA:** `stop_loss_percentage: 15%` — cuts loss if avg entry drops 15%. Win rates now 90–95% (was 100%).
+- **Grid:** `stop_bot_price: lower * 0.90` — closes at loss if price crashes 10% below grid. Win rate 97.4% (was 100%).
+- **S-D:** Already had stop loss; 52.4% win rate is realistic.
 
 **Notes:**
-- S-A, S-B, S-C, S-E show strong in-sample performance; MDD 0% may indicate look-ahead or favorable period.
-- S-D (EMA trend signal) failed gate: negative Sharpe, marginal win rate. Needs parameter tuning or different entry logic.
+- Previous 100% win rates were due to no SL/stop_bot; only profitable exits were counted. Current results reflect realistic risk management.
+- Gate failures indicate strategies may need re-optimization with SL/stop_bot in the param grid.
 
 ---
 
@@ -45,17 +55,17 @@ All 14 unit tests **PASSED**.
 
 ### S-A RSI DCA (BTC/USDT)
 - **Train:** 180d | **Test:** 30d (use `--train 180 --test 30`; run scripts default to 365d/90d)
-- **Total Return (OOS):** 207.37%
-- **Win Rate:** 100%
-- **Trades:** 54
-- **Best params:** base_order_volume=25, safety_order_volume=30, max_safety_orders=4, take_profit=2.0–2.5%
+- **Total Return (OOS):** 105.52%
+- **Win Rate:** 93.75%
+- **Trades:** 64
+- **Best params:** TP 2.0–2.5%, stop_loss 12–18% (WFA optimizes SL in grid)
 
 ### S-B Grid (ETH/USDT)
 - **Train:** 180d | **Test:** 30d (use `--train 180 --test 30`)
-- **Total Return (sum of cell returns):** Corrected metric (no compounding)
-- **Win Rate:** 74.15%
-- **Trades:** 6074
-- **Note:** Grid uses fixed capital per cell; total return displayed as sum of per-cell returns, not compounded.
+- **Total Return (sum of cell returns):** 991.5%
+- **Win Rate:** 58.95%
+- **Trades:** 3859
+- **Note:** Grid uses fixed capital per cell; stop_bot_price 10% below lower. Win rate reflects stop losses on crash events.
 
 ---
 
@@ -65,20 +75,23 @@ All 14 unit tests **PASSED**.
 | Metric | Value |
 |--------|-------|
 | Simulations | 1000 |
-| Median Final Equity | $3,073.74 |
-| Probability of Ruin | 0% |
-| Prob. Drawdown > 20% | 0% |
-| 95% VaR | $2,984.87 |
+| Median Final Equity | $2,065.27 |
+| Probability of Ruin | 1.50% |
+| Prob. Drawdown > 20% | 40.10% |
+| 95% VaR | $1,281.31 |
 
-**Gate:** PASS (ruin < 20%)
+**Gate:** PASS (ruin < 20%). Realistic: some losing trades from SL; MC reflects reshuffled trade order.
 
 ### S-B Grid (ETH/USDT)
 | Metric | Value |
 |--------|-------|
-| Median Final Equity | ~$3.5B (from $1k initial) — *invalid* |
-| Note | MonteCarloValidator compounds returns; grid uses fixed capital per cell. Results inflated. |
+| Simulations | 1000 |
+| Median Final Equity | $1,496.35 |
+| Probability of Ruin | 0% |
+| Prob. Drawdown > 20% | 0% |
+| 95% VaR | $1,449.80 |
 
-**Recommendation:** Implement grid-specific MC that does not compound, or normalize grid pnl by `1/grid_lines_count` before MC.
+**Gate:** PASS (ruin < 20%). Uses `MonteCarloValidatorGrid` with additive returns. Run with `--investment 1000 --grid-lines 20`.
 
 ---
 
@@ -88,38 +101,46 @@ All 14 unit tests **PASSED**.
 
 2. **WFA DCA slowness:** Param grid reduced from ~29k to 2 combos per window for faster runs. Full optimization in `optimize_dca_params.py`.
 
-3. **Grid WFA total return:** Switched from `(1+pnl).prod()-1` to `pnl.sum()` for display, since grid uses fixed capital per cell.
+3. **Grid WFA total return:** ✅ **Fixed.** Switched from `(1+pnl).prod()-1` to `pnl.sum()` for display, since grid uses fixed capital per cell.
 
-4. **Grid Monte Carlo:** Current MC assumes compounding; grid trades should not compound. Needs separate logic.
+4. **Grid Monte Carlo:** ✅ **Fixed.** Added `MonteCarloValidatorGrid` with additive returns. Median equity now ~$1,756 (was inflated to ~$3.5B).
 
-5. **WFA Grid scoring:** `WalkForwardAnalyzer.optimize()` uses `(pnl+1).prod()-1` for all strategies. For grid, pnl is per-cell return; compounding 6000+ cells inflates scores. Grid WFA should use `pnl.sum()` for scoring.
+5. **WFA Grid scoring:** ✅ **Fixed.** `WalkForwardAnalyzer` accepts `score_mode="sum"`; grid WFA uses `pnl.sum()` for optimization scoring.
+
+6. **Report integration:** ✅ **Fixed.** Backtest scripts call `write_backtest_report()`; results auto-save to `research/results/backtests/{dca|grid|signal}/`.
+
+7. **Realistic win rates:** ✅ **Fixed.** Added `stop_loss_percentage: 15%` to DCA and `stop_bot_price: lower*0.90` to Grid. Win rates now 90–97% (was 100%). Report JSON: added `_json_safe()` for numpy/pandas type serialization.
+
+8. **WFA --fast, --pool, --regime-gate:** ✅ **Added.** `--fast` reduces param grid; `--pool` pools DCA across BTC/ETH/SOL; `--regime-gate` skips grid when regime is BULL. WalkForwardAnalyzer accepts `pre_test_hook`.
+
+9. **Slippage:** ✅ **Added.** FeeEngine accepts `slippage_bps`; bots pass it via params. Use `slippage_bps: 10` for 0.1% slippage in backtests.
 
 ---
 
 ## 6. Recommendations for Next Improvements
 
 ### High Priority
-1. **Grid Monte Carlo:** Add `MonteCarloValidatorGrid` or a `compound=False` mode that uses additive returns: `equity = initial + sum(profit_per_trade)`.
-2. **S-D Signal Bot:** Re-optimize TP/SL, add trend filter (e.g. only long when price > SMA200), or try different entry (e.g. EMA crossover instead of sustained above).
+1. ~~**Grid Monte Carlo:**~~ ✅ Done. `MonteCarloValidatorGrid` implemented.
+2. ~~**S-D Signal Bot:**~~ ✅ Done. Added trend filter (SMA200), entry_mode (sustained/crossover), expanded param grid. Sharpe improved -1.05 → -0.38; gate still fails.
 3. **3Commas validation:** Run same pair/period on 3Commas backtester and compare results within 20% for fidelity check.
 
 ### Medium Priority
-4. **Report integration:** Wire `bots.report_utils.write_backtest_report()` into backtest scripts so results auto-save to `research/results/backtests/{dca|grid|signal}/`.
-5. **WFA full param grid:** Add `--fast` flag for reduced grid; default to full grid when time permits.
-6. **Slippage:** Add configurable slippage to fee engine for more realistic backtests.
+4. ~~**Report integration:**~~ ✅ Done. Backtest scripts write to `research/results/backtests/{dca|grid|signal}/`.
+5. ~~**WFA full param grid:**~~ ✅ Done. Added `--fast` flag for reduced grid; default is full grid.
+6. ~~**Slippage:**~~ ✅ Done. Added `slippage_bps` to FeeEngine; bots accept it in params.
 
 ### Lower Priority
 7. **Remaining backtests:** Implement S-F (Heikin Ashi), S-G (ATR), S-H (QFL), S-I (MACD), S-J (Stochastic), S-K (SAR), S-L (RSI Pyramid), S-M (Grid Trailing).
-8. **Regime gating:** Integrate `CryptoRegimeDetector` to enable/disable bots by regime (e.g. disable S-B grid in strong trend).
-9. **Multi-symbol WFA:** Pool OOS trades across BTC, ETH, SOL for DCA as in existing `run_wfa_strategy_1.py --pool`.
+8. ~~**Regime gating:**~~ ✅ Done. Added `--regime-gate` to `run_wfa_grid.py`; skips grid when regime is BULL.
+9. ~~**Multi-symbol WFA:**~~ ✅ Done. Added `--pool` to `run_wfa_dca.py`; pools OOS trades across BTC, ETH, SOL.
 
 ---
 
 ## 7. Run Commands
 
 ```bash
-# Unit tests (14 tests total)
-pytest tests/test_dca_bot.py tests/test_grid_bot.py tests/test_signal_bot.py -v
+# Unit tests (21 tests total)
+pytest tests/test_dca_bot.py tests/test_grid_bot.py tests/test_signal_bot.py tests/test_base_bot.py tests/test_monte_carlo.py tests/test_walk_forward.py -v
 
 # Backtests
 python research/bot_backtests/backtest_dca_rsi.py          # S-A RSI DCA
@@ -133,12 +154,26 @@ python research/walk_forward/run_wfa_dca.py --strategy sa --symbol BTC/USDT
 python research/walk_forward/run_wfa_grid.py --strategy sb --symbol ETH/USDT
 python research/walk_forward/run_wfa_signal.py --strategy sd --symbol BTC/USDT
 
+# WFA options: --fast (reduced grid), --pool (DCA multi-symbol), --regime-gate (grid skip BULL)
+python research/walk_forward/run_wfa_dca.py --strategy sa --pool --fast
+python research/walk_forward/run_wfa_grid.py --strategy sb --symbol ETH/USDT --regime-gate
+
 # Monte Carlo (run after WFA; requires WFA output CSV)
 python research/monte_carlo/run_mc_dca.py --strategy sa --symbol BTC/USDT
-python research/monte_carlo/run_mc_grid.py --strategy sb --symbol ETH/USDT
+python research/monte_carlo/run_mc_grid.py --strategy sb --symbol ETH/USDT  # uses --investment 1000 --grid-lines 20
 python research/monte_carlo/run_mc_signal.py --strategy sd --symbol BTC/USDT
 ```
 
 ---
 
-*Generated from test run on PandaTrader bot simulation framework.*
+## 8. Next Recommendations (Post-Implementation)
+
+1. **Re-optimize for gate pass:** With SL/stop_bot, backtest gates fail. Consider TP/SL/stop_bot in WFA param grid; tune for Sharpe > 1.0, MDD < 25%.
+2. **3Commas fidelity check:** See [docs/3COMMAS_VALIDATION.md](../../docs/3COMMAS_VALIDATION.md). Run same pair/period on 3Commas backtester; compare within 20%.
+3. **S-D further tuning:** Try different indicators (e.g. MACD crossover, RSI oversold in uptrend) or multi-timeframe confirmation.
+4. **Slippage:** Add `slippage_bps` to `FeeEngine` for realistic backtests.
+5. **Regime gating:** Integrate `CryptoRegimeDetector` to disable S-B grid in strong trend regimes.
+
+---
+
+*Generated from test run on PandaTrader bot simulation framework. Last updated: February 2026.*

@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from bots.signal_bot import SignalBotSimulator
 from bots.base_bot import load_ohlcv_for_bot
+from bots.report_utils import write_backtest_report
 
 try:
     import talib
@@ -36,20 +37,35 @@ def load_data(symbol: str, days: int = 730):
     return df
 
 
-def run_backtest(symbol: str = "BTC/USDT") -> dict:
+def run_backtest(
+    symbol: str = "BTC/USDT",
+    trend_filter_sma: int = 200,
+    entry_mode: str = "sustained",
+    take_profit: float = 2.5,
+    stop_loss: float = 2.5,
+) -> dict:
+    """Run S-D EMA signal backtest. trend_filter_sma=0 disables; 200 = only long when close > SMA200."""
     df = load_data(symbol)
-    if df is None or len(df) < 50:
-        return {"error": "Insufficient data"}
+    if df is None or len(df) < 250:
+        return {"error": "Insufficient data (need 250+ bars for SMA200)"}
 
     df["ema12"] = compute_ema(df["close"], 12)
     df["ema26"] = compute_ema(df["close"], 26)
-    s = (df["ema12"] > df["ema26"]).shift(1)
+    ema_bull = df["ema12"] > df["ema26"]
+    if entry_mode == "crossover":
+        s = ema_bull & (df["ema12"].shift(1) <= df["ema26"].shift(1))
+    else:
+        s = ema_bull
+    if trend_filter_sma > 0:
+        df["sma"] = df["close"].rolling(trend_filter_sma).mean()
+        s = s & (df["close"] > df["sma"])
+    s = s.shift(1)
     signal = s.where(s.notna(), False).astype(bool)
 
     params = {
         "position_size": 100,
-        "take_profit_percentage": 2.0,
-        "stop_loss_percentage": 2.0,
+        "take_profit_percentage": take_profit,
+        "stop_loss_percentage": stop_loss,
         "trailing_stop_loss": False,
         "fee": 0.001,
     }
@@ -73,6 +89,22 @@ def main():
     print(f"Sharpe: {r['sharpe_ratio']:.2f} | MDD: {r['max_drawdown']:.1f}%")
     print(f"Win Rate: {r['win_rate']:.1%} | Deals: {r['total_deals']}")
     print(f"Gate: {'PASSED' if r['gate_passed'] else 'FAILED'}")
+    report_path = write_backtest_report(
+        metrics={
+            "sharpe_ratio": r["sharpe_ratio"],
+            "max_drawdown": r["max_drawdown"],
+            "win_rate": r["win_rate"],
+            "total_deals": r["total_deals"],
+            "gate_passed": r["gate_passed"],
+        },
+        params=r.get("optimized_params", {}),
+        strategy_id="sd",
+        symbol=r["symbol"],
+        period_start=r["period_start"],
+        period_end=r["period_end"],
+        out_dir="research/results/backtests",
+    )
+    print(f"Report: {report_path}")
 
 
 if __name__ == "__main__":

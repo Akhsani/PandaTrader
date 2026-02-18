@@ -22,13 +22,15 @@ This is essentially what PandaTrader already does for Freqtrade strategies. You 
 
 ## Implementation Status (February 2026)
 
-| Strategy | Status | Sharpe | Gate |
-|----------|--------|--------|------|
-| S-A RSI DCA | Validated | 3.55 avg | PASS |
-| S-B Grid ETH | Validated | 12.18 | PASS |
-| S-C BB+RSI | Tested | 4.29 | - |
-| S-D EMA Signal | Gate Failed | -1.05 | FAIL |
-| S-E Grid Reversal | Tested | 22.42 | - |
+| Strategy | Status | Sharpe | Win Rate | Gate |
+|----------|--------|--------|----------|------|
+| S-A RSI DCA | Realistic | 0.26 (BTC) | 95.1% | FAIL |
+| S-B Grid ETH | Realistic | -0.06 | 97.4% | FAIL |
+| S-C BB+RSI | Tested | -0.16 | - | FAIL |
+| S-D EMA Signal | Gate Failed | -0.38 | 52.4% | FAIL |
+| S-E Grid Reversal | Tested | -0.08 | - | FAIL |
+
+*Realistic: DCA stop_loss 15%; Grid stop_bot 10% below lower. Win rates no longer 100% (was due to no SL).
 
 **Full results:** [research/reports/BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md](research/reports/BOT_TEST_RESULTS_AND_RECOMMENDATIONS.md)  
 **Workflow:** [docs/BOT_WORKFLOW.md](docs/BOT_WORKFLOW.md)

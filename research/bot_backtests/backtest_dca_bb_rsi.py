@@ -65,6 +65,7 @@ def run_backtest(symbol="BTC/USDT"):
         "martingale_volume_coefficient": 2.0,
         "martingale_step_coefficient": 1.5,
         "take_profit_percentage": 2.5,
+        "stop_loss_percentage": 15.0,
         "fee": 0.001,
     }
     bot = DCABotSimulator(params)

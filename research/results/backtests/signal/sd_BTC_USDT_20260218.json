@@ -1,0 +1,22 @@
+{
+  "strategy_id": "sd",
+  "symbol": "BTC/USDT",
+  "period_start": "2024-02-18",
+  "period_end": "2026-02-17",
+  "params": {
+    "position_size": 100.0,
+    "take_profit_percentage": 2.5,
+    "stop_loss_percentage": 2.5,
+    "trailing_stop_loss": false,
+    "trailing_stop_loss_percentage": 1.0,
+    "fee": 0.001
+  },
+  "metrics": {
+    "sharpe_ratio": -0.3768258363322685,
+    "max_drawdown": -0.49332971247329366,
+    "win_rate": 0.5243055555555556,
+    "total_deals": 288,
+    "gate_passed": false
+  },
+  "gate_passed": false
+}

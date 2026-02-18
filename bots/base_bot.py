@@ -31,27 +31,29 @@ def load_ohlcv_for_bot(path: str, date_col: str = None) -> pd.DataFrame:
 
 class FeeEngine:
     """
-    Configurable fee application for buy and sell fills.
+    Configurable fee and slippage for buy and sell fills.
     Default 0.001 (0.1%) per side for Binance Spot.
+    slippage_bps: basis points (1 bps = 0.01%); e.g. 10 = 0.1% slippage.
     """
 
-    def __init__(self, fee: float = 0.001):
+    def __init__(self, fee: float = 0.001, slippage_bps: float = 0.0):
         self.fee = fee
+        self.slippage = slippage_bps / 10000.0 if slippage_bps else 0.0
 
     def apply_buy_fee(self, usdt_amount: float) -> float:
-        """Cost in USDT to buy (fee reduces effective quantity)."""
-        return usdt_amount * (1 + self.fee)
+        """Cost in USDT to buy (fee + slippage reduce effective quantity)."""
+        return usdt_amount * (1 + self.fee + self.slippage)
 
     def apply_sell_fee(self, usdt_amount: float) -> float:
-        """Proceeds after sell fee."""
-        return usdt_amount * (1 - self.fee)
+        """Proceeds after sell fee and slippage."""
+        return usdt_amount * (1 - self.fee - self.slippage)
 
     def cost_for_quantity(self, quantity: float, price: float, side: str = "buy") -> float:
-        """Total cost (including fee) for a fill."""
+        """Total cost (including fee and slippage) for a fill."""
         notional = quantity * price
         if side == "buy":
-            return notional * (1 + self.fee)
-        return notional * (1 - self.fee)
+            return notional * (1 + self.fee + self.slippage)
+        return notional * (1 - self.fee - self.slippage)
 
 
 def compute_bot_metrics(

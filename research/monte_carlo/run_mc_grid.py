@@ -7,7 +7,7 @@ import argparse
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from research.monte_carlo.monte_carlo_validation import MonteCarloValidator
+from research.monte_carlo.monte_carlo_validation import MonteCarloValidatorGrid
 
 
 def main():
@@ -15,6 +15,8 @@ def main():
     parser.add_argument("--strategy", default="sb")
     parser.add_argument("--symbol", default="ETH/USDT")
     parser.add_argument("--capital", type=float, default=1000)
+    parser.add_argument("--investment", type=float, default=1000, help="Total investment for grid")
+    parser.add_argument("--grid-lines", type=int, default=20, help="Grid lines count")
     parser.add_argument("--simulations", type=int, default=1000)
     args = parser.parse_args()
 
@@ -28,7 +30,12 @@ def main():
         print("No trades or missing pnl column.")
         return
 
-    validator = MonteCarloValidator(trades, initial_capital=args.capital)
+    validator = MonteCarloValidatorGrid(
+        trades,
+        initial_capital=args.capital,
+        investment_amount=args.investment,
+        grid_lines_count=args.grid_lines,
+    )
     stats, _ = validator.run_simulation(n_simulations=args.simulations)
     validator.generate_report(stats)
 

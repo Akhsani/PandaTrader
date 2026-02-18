@@ -25,8 +25,9 @@ class GridBotSimulator:
         self.expansion_down = params.get("expansion_down", False)
         self.stop_bot_price = params.get("stop_bot_price")
         self.fee = float(params.get("fee", 0.001))
+        self.slippage_bps = float(params.get("slippage_bps", 0.0))
         self.leverage = int(params.get("leverage", 1))
-        self.fee_engine = FeeEngine(self.fee)
+        self.fee_engine = FeeEngine(self.fee, slippage_bps=self.slippage_bps)
 
         self.levels = []
         self.closed_deals = []

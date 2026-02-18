@@ -21,7 +21,8 @@ class SignalBotSimulator:
         self.trailing_stop_loss = params.get("trailing_stop_loss", False)
         self.trailing_stop_loss_percentage = float(params.get("trailing_stop_loss_percentage", 1.0))
         self.fee = float(params.get("fee", 0.001))
-        self.fee_engine = FeeEngine(self.fee)
+        self.slippage_bps = float(params.get("slippage_bps", 0.0))
+        self.fee_engine = FeeEngine(self.fee, slippage_bps=self.slippage_bps)
 
         self.closed_deals = []
         self.equity_curve = []

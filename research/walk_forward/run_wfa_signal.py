@@ -26,14 +26,25 @@ def compute_ema(close, period):
 
 
 def signal_strategy_sd(price_df, funding_df=None, **params):
-    """S-D: EMA 12/26 crossover."""
-    if price_df is None or len(price_df) < 50:
+    """S-D: EMA 12/26 with optional trend filter (SMA) and entry mode (sustained/crossover)."""
+    min_bars = 250 if params.get("trend_filter_sma", 0) > 0 else 50
+    if price_df is None or len(price_df) < min_bars:
         return pd.DataFrame()
     df = price_df.copy()
     df.columns = [c.lower() for c in df.columns]
     df["ema12"] = compute_ema(df["close"], 12)
     df["ema26"] = compute_ema(df["close"], 26)
-    s = (df["ema12"] > df["ema26"]).shift(1)
+    ema_bull = df["ema12"] > df["ema26"]
+    entry_mode = params.get("entry_mode", "sustained")
+    if entry_mode == "crossover":
+        s = ema_bull & (df["ema12"].shift(1) <= df["ema26"].shift(1))
+    else:
+        s = ema_bull
+    trend_sma = params.get("trend_filter_sma", 0)
+    if trend_sma > 0:
+        df["sma"] = df["close"].rolling(trend_sma).mean()
+        s = s & (df["close"] > df["sma"])
+    s = s.shift(1)
     signal = s.where(s.notna(), False).astype(bool)
     bot_params = {
         "position_size": params.get("position_size", 100),
@@ -66,16 +77,28 @@ def main():
     parser.add_argument("--symbol", default="BTC/USDT")
     parser.add_argument("--train", type=int, default=365)
     parser.add_argument("--test", type=int, default=90)
+    parser.add_argument("--fast", action="store_true", help="Reduced param grid for faster runs")
     args = parser.parse_args()
 
     strategy_map = {"sd": signal_strategy_sd}
     strategy_func = strategy_map.get(args.strategy, signal_strategy_sd)
 
-    param_grid = {
-        "position_size": [50, 100, 150],
-        "take_profit_percentage": [1.5, 2.0, 2.5, 3.0],
-        "stop_loss_percentage": [1.5, 2.0, 2.5],
-    }
+    if args.fast:
+        param_grid = {
+            "position_size": [100],
+            "take_profit_percentage": [2.5],
+            "stop_loss_percentage": [2.5],
+            "trend_filter_sma": [200],
+            "entry_mode": ["sustained"],
+        }
+    else:
+        param_grid = {
+            "position_size": [100],
+            "take_profit_percentage": [2.0, 2.5, 3.0, 3.5],
+            "stop_loss_percentage": [2.0, 2.5, 3.0],
+            "trend_filter_sma": [0, 200],
+            "entry_mode": ["sustained", "crossover"],
+        }
 
     print(f"Loading {args.symbol}...")
     price_df = load_data(args.symbol)

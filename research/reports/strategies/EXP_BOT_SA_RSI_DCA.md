@@ -12,18 +12,18 @@
 - **Pairs**: BTC, ETH, SOL
 - **Data**: 1h OHLCV
 
-## 3. Results
+## 3. Results (Realistic — with stop_loss 15%)
 
 | Metric | BTC | ETH | SOL |
 |--------|-----|-----|-----|
-| Sharpe | 4.00 | 3.14 | 3.50 |
-| MDD | 0% | 0% | 0% |
-| Win Rate | 100% | 100% | 100% |
-| Deals | 59 | 35 | 47 |
-| Gate | PASS | PASS | PASS |
+| Sharpe | 0.26 | -0.95 | -1.20 |
+| MDD | -1.9% | -3.9% | -4.6% |
+| Win Rate | 95.1% | 90.5% | 90.0% |
+| Deals | 82 | 116 | 130 |
+| Gate | FAIL | FAIL | FAIL |
 
-**WFA (BTC):** OOS return 207.37%, 54 trades, 100% win rate.  
-**Monte Carlo:** Median equity $3,074, 0% ruin. Gate PASS.
+**WFA (BTC):** OOS return 105.52%, 64 trades, 93.75% win rate.  
+**Monte Carlo:** Median equity $2,065, 1.5% ruin, 40% prob DD>20%. Gate PASS.
 
 **Commands:**
 - Backtest: `python research/bot_backtests/backtest_dca_rsi.py`
@@ -31,7 +31,7 @@
 - MC: `python research/monte_carlo/run_mc_dca.py --strategy sa --symbol BTC/USDT`
 
 ## 4. Conclusion
-**Validated.** Backtest, WFA, and MC gates passed. Ready for paper trading.
+**Realistic.** Stop loss 15% added for realism; win rates 90–95% (was 100%). Backtest gate fails; WFA OOS 105%, MC ruin 1.5%. Re-optimize TP/SL for gate pass if needed.
 
 ## 5. 3Commas Export
 Use `bots.export_config.export_to_3commas(optimized_params, 'dca')`.
